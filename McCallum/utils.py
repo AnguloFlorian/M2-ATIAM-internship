@@ -3,7 +3,7 @@ from bisect import bisect
 
 
 
-def triplet_loss(a, p, n, alpha = 0.1):
+def triplet_loss(a, p, n, device, alpha = 0.1):
     # inputs :
     #   - a : anchor audio embeddings
     #   - p : positive example audio embeddings
@@ -11,7 +11,7 @@ def triplet_loss(a, p, n, alpha = 0.1):
     #   - alpha : parameter of the triplet loss (error margin)
     # output :
     #   - triplet_loss computed with the L2-norm
-
+    
     loss = 0
     zero = torch.FloatTensor([0]).to(device)
 
