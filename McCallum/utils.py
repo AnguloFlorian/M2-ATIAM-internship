@@ -42,3 +42,5 @@ def update_stats(n_anchors, fp_vec, fn_matrix, boundaries, duration, delta_p, de
                 fn_matrix[i, j] += (bisect(boundaries, a) == bisect(boundaries, n))
 
     return fp_vec, fn_matrix
+    
+    

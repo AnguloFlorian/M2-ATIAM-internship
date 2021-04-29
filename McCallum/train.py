@@ -27,7 +27,7 @@ batch_size = 6
 n_batchs = 256
 n_triplets = 16
 n_files_train = glob.glob(data_path_harmonix)
-n_files_train.extend(glob.glob(data_path_personal))
+#n_files_train.extend(glob.glob(data_path_personal))
 n_files_val = glob.glob(data_path_isoph)
 
 
