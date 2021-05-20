@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import os
 import warnings
 from pathlib import Path
@@ -11,7 +13,7 @@ import madmom
 def compute_dataset(i, n_bins=72, n_octave=6, min_freq=40, n_t=128):
     bpo = int(n_bins / n_octave)
     # Compute beat-centered CQTs for each track
-    print("track n°" + str(i + 1) + "/" + str(len(paths)))
+    print("track nÂ°" + str(i + 1) + "/" + str(len(paths)))
     print(paths[i])
     filename = Path(paths[i]).stem
     

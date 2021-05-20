@@ -53,7 +53,7 @@ for epoch in range(N_EPOCH):
     model.train()
     print("EPOCH " + str(epoch + 1) + "/" + str(N_EPOCH))
     for i, data in enumerate(tqdm(train_loader)):
-        data = data.view(-1, 3, 72, 512).to(device)
+        data = data.view(-1, 72, 512).to(device)
         # zero the parameter gradients
         optimizer.zero_grad()
         # forward + backward + optimize
