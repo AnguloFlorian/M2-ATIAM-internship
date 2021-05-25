@@ -7,7 +7,7 @@ from torch.utils.data import Dataset
 class CQTsDataset(Dataset):
     """CQTs dataset."""
 
-    def __init__(self, n_files, bias=True, n_triplets=16, delta=(16, 1, 96), dim_cqt=(72, 128 * 4)):
+    def __init__(self, n_files, bias=False, n_triplets=16, delta=(16, 1, 96), dim_cqt=(72, 16 * 4)):
 
         self.n_files = n_files
         self.delta = delta
@@ -71,12 +71,12 @@ class CQTsDataset(Dataset):
             cqts_app = np.append(cqts_app, cqts[i], axis= 1)
         return cqts_app
     
-    def compare_segments(self, cqts, a):
-        eps = 1e-5
-        cqts_left1 = np.log(np.abs(np.fft.fft2(np.log(np.abs(self.append_cqts(cqts, a - 20, a - 12)) + eps))) + eps)
-        cqts_left2 = np.log(np.abs(np.fft.fft2(np.log(np.abs(self.append_cqts(cqts, a - 8, a)) + eps))) + eps)
-        cqts_right1 = np.log(np.abs(np.fft.fft2(np.log(np.abs(self.append_cqts(cqts, a, a + 8)) + eps))) + eps)
-        cqts_right2 = np.log(np.abs(np.fft.fft2(np.log(np.abs(self.append_cqts(cqts, a + 12, a + 20)) + eps))) + eps)
-        
-        return norm(cqts_left2 - cqts_left1, 2) > norm(cqts_right2 - cqts_right1, 2)
+    #def compare_segments(self, cqts, a):
+    #    eps = 1e-5
+    #    cqts_left1 = np.log(np.abs(np.fft.fft2(np.log(np.abs(self.append_cqts(cqts, a - 20, a - 12)) + eps))) + eps)
+    #    cqts_left2 = np.log(np.abs(np.fft.fft2(np.log(np.abs(self.append_cqts(cqts, a - 8, a)) + eps))) + eps)
+    #    cqts_right1 = np.log(np.abs(np.fft.fft2(np.log(np.abs(self.append_cqts(cqts, a, a + 8)) + eps))) + eps)
+    #    cqts_right2 = np.log(np.abs(np.fft.fft2(np.log(np.abs(self.append_cqts(cqts, a + 12, a + 20)) + eps))) + eps)
+    #    
+    #    return norm(cqts_left2 - cqts_left1, 2) > norm(cqts_right2 - cqts_right1, 2)
 
