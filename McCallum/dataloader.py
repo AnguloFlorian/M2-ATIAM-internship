@@ -7,7 +7,7 @@ from torch.utils.data import Dataset
 class CQTsDataset(Dataset):
     """CQTs dataset."""
 
-    def __init__(self, n_files, bias=False, n_triplets=16, delta=(16, 1, 96), dim_cqt=(72, 16 * 4)):
+    def __init__(self, n_files, n_triplets=16, bias=False, delta=(16, 1, 96), dim_cqt=(72, 16 * 4)):
 
         self.n_files = n_files
         self.delta = delta
@@ -47,10 +47,10 @@ class CQTsDataset(Dataset):
         nl_sup = max(a - dnmin, 3)
         nr_sup = min(a + dnmax, L - 1)
         
-        if self.bias and 19 <= a <= L - 20:
-            sample_left = self.compare_segments(cqts, a)
-            (p_inf, p_sup) = (a + 1, p_sup) if sample_left else (p_inf, a)
-        elif a in [2, L - 3]:
+        #if self.bias and 19 <= a <= L - 20:
+        #    sample_left = self.compare_segments(cqts, a)
+        #    (p_inf, p_sup) = (a + 1, p_sup) if sample_left else (p_inf, a)
+        if a in [2, L - 3]:
             sample_left = (a != 2)
         else:
             sample_left = torch.randint(2, (1,)).item()
