@@ -13,7 +13,8 @@ from model import ConvNet
 
 print('libraries imported')
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "error")
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+device="cpu"
 root_path = "/tsi/clusterhome/atiam-1005/music-structure-estimation/McCallum/"
 data_path_harmonix = "/tsi/clusterhome/atiam-1005/data/Harmonix/cqts/*"
 data_path_harmonix2 = "/tsi/clusterhome/atiam-1005/data/Harmonix/cqts_to_check/*"
@@ -51,24 +52,19 @@ for epoch in range(N_EPOCH):
           dataset=train_dataset,
           batch_size=batch_size,
           num_workers = 6,
-          shuffle=True
           )
 
     model.train()
     print("EPOCH " + str(epoch + 1) + "/" + str(N_EPOCH))
     for i, data in enumerate(tqdm(train_loader)):
-        print('data {0} accessed'.format(i))
         data = data.view(-1, 3, 72, 64).to(device)
         # zero the parameter gradients
         optimizer.zero_grad()
         # forward + backward + optimize
         a, p, n = model(data)
-        print('model passed')
         train_loss = triplet_loss(a, p, n, device)
         train_loss.backward()
-        print('backward passed')
         optimizer.step()
-        print('optimizer passed')
         running_loss += train_loss.item()
     # print statistics
     print('average train loss: %.6f' %
@@ -86,8 +82,7 @@ for epoch in range(N_EPOCH):
         validation_loader = DataLoader(
             dataset=val_dataset,
             batch_size=batch_size,
-            num_workers = 6,
-            shuffle=True
+            num_workers = 6
         )
         for i, data in enumerate(tqdm(validation_loader)):
             data = data.view(-1, 3, 72, 64).to(device)

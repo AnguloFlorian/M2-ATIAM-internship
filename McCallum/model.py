@@ -21,7 +21,7 @@ class ConvNet(nn.Module):
         self.bnc3 = nn.BatchNorm2d(128)
         self.pool3 = nn.MaxPool2d(kernel_size=(3, 4))
         self.fc1 = nn.Linear(6 * 4 * 128, 1024)
-        self.bnf1 = nn.BatchNorm1d(128)
+        self.bnf1 = nn.BatchNorm1d(1024)
         self.fc2 = nn.Linear(1024, 128)
         self.bnf2 = nn.BatchNorm1d(128)
 
@@ -30,10 +30,9 @@ class ConvNet(nn.Module):
         x = self.pool1(self.bnc1(F.relu(self.conv1(F.pad(x,self.pad1)))))
         x = self.pool2(self.bnc2(F.relu(self.conv2(F.pad(x,self.pad2)))))
         x = self.pool3(self.bnc3(F.relu(self.conv3(F.pad(x,self.pad3)))))
-        x = x.view(-1, 6 * 8 * 256)
+        x = x.view(-1, 6 * 4 * 128)
         x = self.bnf1(F.relu(self.fc1(x)))
-        x = self.bnf2(F.relu(self.fc2(x)))
-        x = F.normalize(F.relu(self.fc3(x)), p=2)
+        x = F.normalize(self.bnf2(F.relu(self.fc2(x))), p=2)
         return x
 
     def forward(self, x):
