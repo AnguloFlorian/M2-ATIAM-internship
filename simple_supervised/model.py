@@ -24,9 +24,8 @@ class ConvNet(nn.Module):
         self.bnf1 = nn.BatchNorm1d(1024)
         self.fc2 = nn.Linear(1024, 128)
         self.bnf2 = nn.BatchNorm1d(128)
-
-
-    def forward(self, x):
+        
+    def apply_cnn(self,x):
         x = x.unsqueeze(1) # for 1 channel
         x = self.pool1(self.bnc1(F.relu(self.conv1(F.pad(x,self.pad1)))))
         x = self.pool2(self.bnc2(F.relu(self.conv2(F.pad(x,self.pad2)))))
@@ -35,3 +34,13 @@ class ConvNet(nn.Module):
         x = self.bnf1(F.relu(self.fc1(x)))
         x = F.normalize(self.bnf2(F.relu(self.fc2(x))), p=2)
         return x
+
+    def forward(self, x):
+        a = self.apply_cnn(x[:, 0, :, :])
+        p = self.apply_cnn(x[:, 1, :, :])
+        n = self.apply_cnn(x[:, 2, :, :])
+        
+        return a, p, n
+    
+    def inference(self, x):
+        return self.apply_cnn(x)

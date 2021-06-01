@@ -11,7 +11,7 @@ import madmom
 import jams
 import random
 
-def compute_dataset(i, n_bins=72, n_octave=6, min_freq=None, n_seg=16, h_l=32):
+def compute_dataset(i, n_bins=72, n_octave=6, min_freq=None, n_seg=16, h_l=64):
     bpo = int(n_bins / n_octave)
     # Compute beat-centered CQTs for each track
     print("track n°" + str(i + 1) + "/" + str(len(paths)))
@@ -53,20 +53,20 @@ def compute_dataset(i, n_bins=72, n_octave=6, min_freq=None, n_seg=16, h_l=32):
         cqts[i,: , :] = C[:, i*16:(i+1)*16]
 
     # Read segment annotations
-    track_annotations = jams.load('{0}references/jams/{1}.jams'.format(data_path,str(filename)))
-    annotation_seg = track_annotations.search(namespace='segment_open')[0].data
+    #track_annotations = jams.load('{0}references/jams/{1}.jams'.format(data_path,str(filename)))
+    #annotation_seg = track_annotations.search(namespace='segment_open')[0].data
     
     # Associate segmentation labels with each beat
-    beats_labels, is_reliable = label_beats(beat_t, annotation_seg, start_time, end_time)
+    #beats_labels, is_reliable = label_beats(beat_t, annotation_seg, start_time, end_time)
     
     # Check the reliability of the annotations and the subsegmentation
-    if not is_reliable:
-        print('Preprocessing not reliable for {0}'.format(str(filename)))
-        return
+    #if not is_reliable:
+    #    print('Preprocessing not reliable for {0}'.format(str(filename)))
+    #    return
     
     # Save CQTs, beats and labels
-    np.save('{0}beats_labels/to_check/{1}.npy'.format(data_path, str(filename)), beats_labels)
-    np.save('{0}cqts/to_check/{1}.npy'.format(data_path, str(filename)), cqts)
+    #np.save('{0}beats_labels/to_check/{1}.npy'.format(data_path, str(filename)), beats_labels)
+    np.save('{0}cqts/{1}.npy'.format(data_path, str(filename)), cqts)
 
     
 def label_beats(beats, annotation_seg, start_time, end_time):
@@ -96,16 +96,15 @@ def label_beats(beats, annotation_seg, start_time, end_time):
         beats_labels[i,1] = labels2id[labels[k]]
     
     return beats_labels, is_reliable
-    
 
 if __name__ == "__main__":
-    data_path = "/tsi/clusterhome/atiam-1005/data/Harmonix/"
+    data_path = "/tsi/clusterhome/atiam-1005/data/Personal/"
     warnings.filterwarnings("ignore")
-    paths = glob.glob(data_path + 'audio/*')
+    paths = glob.glob(data_path + '100 Greatest Songs of the 80s/*')
     random.shuffle(paths)
     print(str(len(paths)) + " files to process ...")
-    #a_pool = mp.Pool()
-    #a_pool.map(compute_dataset, range(len(paths)))
-    for i in range(len(paths)):
-      compute_dataset(i)
+    a_pool = mp.Pool()
+    a_pool.map(compute_dataset, range(len(paths)))
+    #for i in range(len(paths)):
+    #  compute_dataset(i)
     warnings.filterwarnings("always")

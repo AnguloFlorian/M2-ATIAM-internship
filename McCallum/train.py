@@ -13,15 +13,14 @@ from model import ConvNet
 
 print('libraries imported')
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-device="cpu"
+device = torch.device("cuda:0" if torch.cuda.is_available() else "error")
 root_path = "/tsi/clusterhome/atiam-1005/music-structure-estimation/McCallum/"
 data_path_harmonix = "/tsi/clusterhome/atiam-1005/data/Harmonix/cqts/*"
 data_path_harmonix2 = "/tsi/clusterhome/atiam-1005/data/Harmonix/cqts_to_check/*"
-data_path_personal = root_path + "cqts_personal/*"
+data_path_personal = "/tsi/clusterhome/atiam-1005/data/Personal/cqts/*"
 data_path_isoph = "/tsi/clusterhome/atiam-1005/data/Harmonix/cqts/*"
 
-writer = SummaryWriter(root_path + "runs/unsupervised_harmo_isoph")
+writer = SummaryWriter(root_path + "runs/unsupervised_small_biased")
 
 
 N_EPOCH = 250
@@ -31,7 +30,7 @@ n_triplets = 16
 dim_cqts = (72, 64)
 n_files_train = glob.glob(data_path_harmonix)
 n_files_train.extend(glob.glob(data_path_harmonix2))
-#n_files_train.extend(glob.glob(data_path_personal))
+n_files_train.extend(glob.glob(data_path_personal))
 n_files_val = glob.glob(data_path_isoph)
 
 
@@ -43,7 +42,7 @@ print(len(n_files_val), 'validation examples')
 
 model = ConvNet().to(device)
 optimizer = optim.Adam(model.parameters())
-
+torch.save(model.state_dict(), root_path + "weights/small_biased_model_init.pt")
 for epoch in range(N_EPOCH):
     running_loss = 0.0
     random.shuffle(n_files_train)
@@ -98,5 +97,5 @@ for epoch in range(N_EPOCH):
                           epoch)
 
     if epoch % 10 == 9:
-        torch.save(model.state_dict(), root_path + "weights/exp_harmo_isoph_model" + str(epoch) + ".pt")
+        torch.save(model.state_dict(), root_path + "weights/small_biased_model" + str(epoch) + ".pt")
 print('Finished Training')

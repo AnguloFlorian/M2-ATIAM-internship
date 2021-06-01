@@ -9,12 +9,11 @@ from pathlib import Path
 class CQTsDataset(Dataset):
     """CQTs dataset."""
 
-    def __init__(self, path_cqts, path_labels, path_beats, bias=True, n_sampled=16, dim_embed=128):
+    def __init__(self, path_cqts, path_labels, path_beats, n_sampled=16, dim_embed=128):
         
         self.path_cqts = path_cqts
         self.path_labels = path_labels
         self.delta = delta
-        self.bias = True
         self.n_sampled = n_sampled
         self.dim_embed = dim_embed
 

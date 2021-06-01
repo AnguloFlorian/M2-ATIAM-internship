@@ -7,11 +7,11 @@ from torch.utils.data import Dataset
 class CQTsDataset(Dataset):
     """CQTs dataset."""
 
-    def __init__(self, n_files, n_triplets=16, bias=False, delta=(16, 1, 96), dim_cqt=(72, 16 * 4)):
+    def __init__(self, n_files, n_triplets=16, bias=True, delta=(16, 1, 96), dim_cqt=(72, 64)):
 
         self.n_files = n_files
         self.delta = delta
-        self.bias = True
+        self.bias = bias
         self.n_triplets = n_triplets
         self.dim_cqt = dim_cqt
 
@@ -43,21 +43,21 @@ class CQTsDataset(Dataset):
         p_inf = max(a - dp, 2)
         nl_inf = max(a - dnmax, 2)
         nr_inf = min(a + dnmin, L - 2)
-        p_sup = min(a + dp, L - 2)
-        nl_sup = max(a - dnmin, 3)
+        p_sup = min(a + dp, L - 1)
+        nl_sup = max(a - dnmin + 1, 3)
         nr_sup = min(a + dnmax, L - 1)
         
-        #if self.bias and 19 <= a <= L - 20:
-        #    sample_left = self.compare_segments(cqts, a)
-        #    (p_inf, p_sup) = (a + 1, p_sup) if sample_left else (p_inf, a)
-        if a in [2, L - 3]:
+        if self.bias and 19 <= a <= L - 20:
+            sample_left = self.compare_segments(cqts, a)
+            (p_inf, p_sup) = (a + 1, p_sup) if sample_left else (p_inf, a)
+        if a in [2, L - 2]:
             sample_left = (a != 2)
         else:
             sample_left = torch.randint(2, (1,)).item()
         
         
         p, n = a, a
-        while a == p or a == n:
+        while (a == p or a == n):
             p = torch.randint(p_inf, p_sup, (1,)).item()
             n = torch.randint(nl_inf, nl_sup, (1,)).item() if sample_left \
                 else torch.randint(nr_inf, nr_sup, (1,)).item()
@@ -71,12 +71,12 @@ class CQTsDataset(Dataset):
             cqts_app = np.append(cqts_app, cqts[i], axis= 1)
         return cqts_app
     
-    #def compare_segments(self, cqts, a):
-    #    eps = 1e-5
-    #    cqts_left1 = np.log(np.abs(np.fft.fft2(np.log(np.abs(self.append_cqts(cqts, a - 20, a - 12)) + eps))) + eps)
-    #    cqts_left2 = np.log(np.abs(np.fft.fft2(np.log(np.abs(self.append_cqts(cqts, a - 8, a)) + eps))) + eps)
-    #    cqts_right1 = np.log(np.abs(np.fft.fft2(np.log(np.abs(self.append_cqts(cqts, a, a + 8)) + eps))) + eps)
-    #    cqts_right2 = np.log(np.abs(np.fft.fft2(np.log(np.abs(self.append_cqts(cqts, a + 12, a + 20)) + eps))) + eps)
-    #    
-    #    return norm(cqts_left2 - cqts_left1, 2) > norm(cqts_right2 - cqts_right1, 2)
+    def compare_segments(self, cqts, a):
+        eps = 1e-7j
+        cqts_left1 = np.log(np.abs(np.fft.fft2(np.log(np.abs(self.append_cqts(cqts, a - 20, a - 12)) + eps))) + eps)
+        cqts_left2 = np.log(np.abs(np.fft.fft2(np.log(np.abs(self.append_cqts(cqts, a - 8, a)) + eps))) + eps)
+        cqts_right1 = np.log(np.abs(np.fft.fft2(np.log(np.abs(self.append_cqts(cqts, a, a + 8)) + eps))) + eps)
+        cqts_right2 = np.log(np.abs(np.fft.fft2(np.log(np.abs(self.append_cqts(cqts, a + 12, a + 20)) + eps))) + eps)
+        
+        return norm(cqts_left2 - cqts_left1, 2) > norm(cqts_right2 - cqts_right1, 2)
 

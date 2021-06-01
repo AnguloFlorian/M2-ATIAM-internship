@@ -14,21 +14,24 @@ from online_triplet_loss.losses import *
 
 print('libraries imported')
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "error")
-root_path = "/ids-cluster-storage/storage/atiam-1005/music-structure-estimation/McCallum/"
-data_path_harmonix = root_path + "cqts_harmonix/*"
-data_path_personal = root_path + "cqts_personal/*"
-data_path_isoph = root_path + "cqts_isoph/*"
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+root_path = "/tsi/clusterhome/atiam-1005/music-structure-estimation/simple_supervised/"
+data_path_harmonix = "/tsi/clusterhome/atiam-1005/data/Harmonix/cqts/*"
+data_path_harmonix2 = "/tsi/clusterhome/atiam-1005/data/Harmonix/cqts_to_check/*"
+data_path_personal = "/tsi/clusterhome/atiam-1005/data/Personal/cqts/*"
+data_path_isoph = "/tsi/clusterhome/atiam-1005/data/Harmonix/cqts/*"
 
-writer = SummaryWriter(root_path + "runs/experiment_biased_sampling")
+writer = SummaryWriter(root_path + "runs/unsupervised_harmo_isoph_personal_biased")
 
 
 N_EPOCH = 250
 batch_size = 6
 n_batchs = 256
 n_triplets = 16
+dim_cqts = (72, 64)
 n_files_train = glob.glob(data_path_harmonix)
-#n_files_train.extend(glob.glob(data_path_personal))
+n_files_train.extend(glob.glob(data_path_harmonix2))
+n_files_train.extend(glob.glob(data_path_personal))
 n_files_val = glob.glob(data_path_isoph)
 
 
