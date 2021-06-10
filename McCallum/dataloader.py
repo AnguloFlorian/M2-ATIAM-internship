@@ -7,11 +7,12 @@ from torch.utils.data import Dataset
 class CQTsDataset(Dataset):
     """CQTs dataset."""
 
-    def __init__(self, n_files, n_triplets=16, bias=True, delta=(16, 1, 96), dim_cqt=(72, 64)):
+    def __init__(self, n_files, n_triplets=16, bias=True, normalization='max', delta=(16, 1, 96), dim_cqt=(72, 64)):
 
         self.n_files = n_files
         self.delta = delta
         self.bias = bias
+        self.normalization = normalization
         self.n_triplets = n_triplets
         self.dim_cqt = dim_cqt
 
@@ -26,6 +27,13 @@ class CQTsDataset(Dataset):
         except ValueError:
             print("An error occured with file {}".format(self.n_files[idx]))
 
+
+        # Normalization
+        if self.normalization == 'max':
+            cqts = cqts / np.max(cqts)
+        elif self.normalization == 'gaussian':
+            cqts = (cqts - np.mean(cqts)) / np.std(cqts)
+        
         cqts_batch = torch.empty(self.n_triplets, 3, self.dim_cqt[0], self.dim_cqt[1])
         for j in range(self.n_triplets):
             

@@ -18,9 +18,13 @@ root_path = "/tsi/clusterhome/atiam-1005/music-structure-estimation/McCallum/"
 data_path_harmonix = "/tsi/clusterhome/atiam-1005/data/Harmonix/cqts/*"
 data_path_harmonix2 = "/tsi/clusterhome/atiam-1005/data/Harmonix/cqts_to_check/*"
 data_path_personal = "/tsi/clusterhome/atiam-1005/data/Personal/cqts/*"
+data_path_jamendo = "/tsi/clusterhome/atiam-1005/data/Jamendo/cqts/*"
 data_path_isoph = "/tsi/clusterhome/atiam-1005/data/Harmonix/cqts/*"
 
-writer = SummaryWriter(root_path + "runs/unsupervised_small_biased")
+
+name_exp = "norm_quite_small_alternative"
+
+writer = SummaryWriter(root_path + "runs/" + name_exp)
 
 
 N_EPOCH = 250
@@ -28,11 +32,13 @@ batch_size = 6
 n_batchs = 256
 n_triplets = 16
 dim_cqts = (72, 64)
-n_files_train = glob.glob(data_path_harmonix)
-n_files_train.extend(glob.glob(data_path_harmonix2))
+n_files_train = glob.glob(data_path_jamendo)
+#n_files_train.extend(glob.glob(data_path_harmonix))
+#n_files_train.extend(glob.glob(data_path_harmonix2))
 n_files_train.extend(glob.glob(data_path_personal))
 n_files_val = glob.glob(data_path_isoph)
-
+n_files_val.extend(glob.glob(data_path_harmonix2))
+n_files_val.extend(glob.glob(data_path_harmonix))
 
 val_dataset = CQTsDataset(n_files_val, n_triplets=n_triplets)
 
@@ -42,7 +48,8 @@ print(len(n_files_val), 'validation examples')
 
 model = ConvNet().to(device)
 optimizer = optim.Adam(model.parameters())
-torch.save(model.state_dict(), root_path + "weights/small_biased_model_init.pt")
+best_loss = float('inf')
+torch.save(model.state_dict(), "{0}weights/{1}_init.pt".format(root_path, name_exp))
 for epoch in range(N_EPOCH):
     running_loss = 0.0
     random.shuffle(n_files_train)
@@ -95,7 +102,11 @@ for epoch in range(N_EPOCH):
         writer.add_scalar('validation loss (Isophonics)',
                           running_loss / len(validation_loader),
                           epoch)
-
+    
+    # Save best model if validation loss is improved and update regularly last model state
+    if val_loss <= best_loss:
+        torch.save(model.state_dict(), "{0}weights/{1}_best.pt".format(root_path, name_exp))
+        best_loss = val_loss
     if epoch % 10 == 9:
-        torch.save(model.state_dict(), root_path + "weights/small_biased_model" + str(epoch) + ".pt")
+        torch.save(model.state_dict(), "{0}weights/{1}_last.pt".format(root_path, name_exp))
 print('Finished Training')

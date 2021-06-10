@@ -9,41 +9,53 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from dataloader import CQTsDataset
 from utils import triplet_loss
-from model import ConvNet
+from model import SSMnet
 
 print('libraries imported')
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "error")
-root_path = "/ids-cluster-storage/storage/atiam-1005/music-structure-estimation/McCallum/"
-data_path_harmonix = root_path + "cqts_harmonix/*"
-data_path_personal = root_path + "cqts_personal/*"
-data_path_isoph = root_path + "cqts_isoph/*"
+root_path = "/tsi/clusterhome/atiam-1005/music-structure-estimation/SSMnet/"
+data_path_harmonix = "/tsi/clusterhome/atiam-1005/data/Harmonix/cqts/*"
+data_path_harmonix2 = "/tsi/clusterhome/atiam-1005/data/Harmonix/cqts_to_check/*"
+data_path_personal = "/tsi/clusterhome/atiam-1005/data/Personal/cqts/*"
+data_path_isoph = "/tsi/clusterhome/atiam-1005/data/Harmonix/cqts/*"
 
-writer = SummaryWriter(root_path + "runs/experiment_biased_sampling")
+name_exp = "bce_loss_sum_freezed"
+writer = SummaryWriter('{0}runs/{1}'.format(root_path, name_exp))
 
 
 N_EPOCH = 250
 batch_size = 1
+backward_size = 6
 n_batchs = 256
 n_triplets = 16
-n_files_train = glob.glob(data_path_harmonix)
-#n_files_train.extend(glob.glob(data_path_personal))
-n_files_val = glob.glob(data_path_isoph)
+dim_cqts = (72, 64)
+files_train = glob.glob(data_path_isoph)
+random.shuffle(files_train)
+files_val = files_train[int(0.8*len(files_train)):]
+files_train = files_train[:int(0.8*len(files_train))]
 
 
-val_dataset = CQTsDataset(n_files_val, n_triplets)
+val_dataset = CQTsDataset(files_val)
+validation_loader = DataLoader(
+    dataset=val_dataset,
+    batch_size=batch_size,
+)
 
+print(len(files_train), 'training examples')
+print(len(files_val), 'validation examples')
 
-print(len(n_files_train), 'training examples')
-print(len(n_files_val), 'validation examples')
-
-model = ConvNet().to(device)
+model = SSMnet().to(device)
 optimizer = optim.Adam(model.parameters())
+mse_loss = torch.nn.MSELoss()
+bce_loss = torch.nn.BCELoss()
+model.load_state_dict(torch.load('{0}weights/pretrained_model.pt'.format(root_path)))
+best_loss = float('inf')
 
 for epoch in range(N_EPOCH):
     running_loss = 0.0
-    random.shuffle(n_files_train)
-    train_dataset = CQTsDataset(n_files_train, n_triplets)
+    random.shuffle(files_train)
+    train_dataset = CQTsDataset(files_train)
     train_loader = DataLoader(
           dataset=train_dataset,
           batch_size=batch_size,
@@ -52,15 +64,17 @@ for epoch in range(N_EPOCH):
     model.train()
     print("EPOCH " + str(epoch + 1) + "/" + str(N_EPOCH))
     for i, (cqts, ssm) in enumerate(tqdm(train_loader)):
-        cqts = data.view(-1, 72, 512).to(device)
-        a, p, n = model(data)
-        train_loss = triplet_loss(a, p, n, device)
+        ssm_hat = model(cqts.squeeze())
+        train_loss = bce_loss(ssm_hat, ssm.squeeze())
         train_loss.backward()
         running_loss += train_loss.item()
-        if (i + 1) % batch_size == 0:
+        if (i + 1) % backward_size == 0:
             optimizer.step()
             optimizer.zero_grad()
-
+    
+    optimizer.step()
+    optimizer.zero_grad()
+    
     # print statistics
     print('average train loss: %.6f' %
                 (running_loss/len(train_loader)))
@@ -74,14 +88,9 @@ for epoch in range(N_EPOCH):
     with torch.no_grad():
         model.eval()
         running_loss = 0.0
-        validation_loader = DataLoader(
-            dataset=val_dataset,
-            batch_size=batch_size,
-        )
-        for i, data in enumerate(tqdm(validation_loader)):
-            data = data.view(-1, 3, 72, 512).to(device)
-            a, p, n = model(data)
-            val_loss = triplet_loss(a, p, n, device)
+        for i, (cqts, ssm) in enumerate(tqdm(validation_loader)):
+            ssm_hat = model(cqts.squeeze().to(device))
+            val_loss = bce_loss(ssm_hat, ssm.squeeze())
             running_loss += val_loss.item()
         # print statistics
         print('average validation loss (Isophonics): %.6f' %
@@ -91,6 +100,11 @@ for epoch in range(N_EPOCH):
                           running_loss / len(validation_loader),
                           epoch)
 
+# Save best model if validation loss is improved and update regularly last model state
+    if val_loss <= best_loss:
+        torch.save(model.state_dict(), "{0}weights/{1}_best.pt".format(root_path, name_exp))
+        best_loss = val_loss
     if epoch % 10 == 9:
-        torch.save(model.state_dict(), root_path + "weights_biased_sampling/model" + str(epoch) + ".pt")
+        torch.save(model.state_dict(), "{0}weights/{1}_last.pt".format(root_path, name_exp))
+        
 print('Finished Training')

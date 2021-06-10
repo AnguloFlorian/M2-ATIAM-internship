@@ -98,13 +98,13 @@ def label_beats(beats, annotation_seg, start_time, end_time):
     return beats_labels, is_reliable
 
 if __name__ == "__main__":
-    data_path = "/tsi/clusterhome/atiam-1005/data/Personal/"
+    data_path = "/tsi/clusterhome/atiam-1005/data/Jamendo/"
     warnings.filterwarnings("ignore")
-    paths = glob.glob(data_path + '100 Greatest Songs of the 80s/*')
+    paths = glob.glob(data_path + 'audio/*')
     random.shuffle(paths)
     print(str(len(paths)) + " files to process ...")
     a_pool = mp.Pool()
-    a_pool.map(compute_dataset, range(len(paths)))
-    #for i in range(len(paths)):
-    #  compute_dataset(i)
+    #a_pool.map(compute_dataset, range(len(paths)))
+    for i in range(len(paths)):
+      compute_dataset(i)
     warnings.filterwarnings("always")
