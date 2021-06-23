@@ -15,7 +15,7 @@ from online_triplet_loss.losses import *
 print('libraries imported')
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-root_path = "/tsi/clusterhome/atiam-1005/music-structure-estimation/simple_supervised/"
+root_path = "/tsi/clusterhome/atiam-1005/M2-ATIAM-internship/music-structure-estimation/simple_supervised/"
 data_path_harmonix = "/tsi/clusterhome/atiam-1005/data/Harmonix/cqts/*"
 data_path_harmonix2 = "/tsi/clusterhome/atiam-1005/data/Harmonix/cqts_to_check/*"
 data_path_personal = "/tsi/clusterhome/atiam-1005/data/Personal/cqts/*"

@@ -14,7 +14,7 @@ from model import SSMnet
 print('libraries imported')
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "error")
-root_path = "/tsi/clusterhome/atiam-1005/music-structure-estimation/SSMnet/"
+root_path = "/tsi/clusterhome/atiam-1005/M2-ATIAM-internship/music-structure-estimation/SSMnet/"
 data_path_harmonix = "/tsi/clusterhome/atiam-1005/data/Harmonix/cqts/*"
 data_path_harmonix2 = "/tsi/clusterhome/atiam-1005/data/Harmonix/cqts_to_check/*"
 data_path_personal = "/tsi/clusterhome/atiam-1005/data/Personal/cqts/*"
