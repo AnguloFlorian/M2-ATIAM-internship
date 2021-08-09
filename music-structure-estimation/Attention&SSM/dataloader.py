@@ -41,6 +41,7 @@ class CQTsDataset(Dataset):
         one_hot_labels = F.one_hot(torch.from_numpy(labels))
         ssm = one_hot_labels.matmul(one_hot_labels.transpose(-1, -2)).to(self.device)
 
+        
         return cqts_track.float(), ssm.float()
 
     

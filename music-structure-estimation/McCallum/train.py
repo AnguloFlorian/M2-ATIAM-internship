@@ -11,50 +11,50 @@ from dataloader import CQTsDataset
 from utils import triplet_loss
 from model import ConvNet
 
+
 print('libraries imported')
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "error")
 root_path = "/tsi/clusterhome/atiam-1005/M2-ATIAM-internship/music-structure-estimation/McCallum/"
 data_path_harmonix = "/tsi/clusterhome/atiam-1005/data/Harmonix/cqts/*"
-data_path_harmonix2 = "/tsi/clusterhome/atiam-1005/data/Harmonix/cqts_to_check/*"
 data_path_personal = "/tsi/clusterhome/atiam-1005/data/Personal/cqts/*"
-data_path_jamendo = "/tsi/clusterhome/atiam-1005/data/Jamendo/cqts/*"
-data_path_isoph = "/tsi/clusterhome/atiam-1005/data/Harmonix/cqts/*"
+data_path_isoph = "/tsi/clusterhome/atiam-1005/data/Isophonics/cqts/*"
 
-
-name_exp = "freq_based_norm"
-
-writer = SummaryWriter(root_path + "runs/" + name_exp)
+name_exp = "max_no_decay_25k_less_fc_low_lr_retrain"
+writer = SummaryWriter('{0}runs/{1}'.format(root_path, name_exp))
 
 
 N_EPOCH = 250
 batch_size = 6
-n_batchs = 256
+n_batches = 256
 n_triplets = 16
+
 files_train = glob.glob(data_path_personal)
 files_train.extend(glob.glob(data_path_harmonix))
-files_train.extend(glob.glob(data_path_harmonix2))
-#files_train.extend(glob.glob(jamendo))
 files_val = glob.glob(data_path_isoph)
 
-val_dataset = CQTsDataset(files_val, n_triplets=n_triplets)
-
+val_dataset = CQTsDataset(files_val)
+validation_loader = DataLoader(
+    dataset=val_dataset,
+    batch_size=batch_size,
+)
 
 print(len(files_train), 'training examples')
 print(len(files_val), 'validation examples')
-
 model = ConvNet().to(device)
-optimizer = optim.Adam(model.parameters())
+optimizer = optim.Adam(model.parameters(), lr=5e-6)
+scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min')
 best_loss = float('inf')
-torch.save(model.state_dict(), "{0}weights/{1}_init.pt".format(root_path, name_exp))
+model.load_state_dict(torch.load('{0}weights/max_no_decay_25k_less_fc_low_lr_best.pt'.format(root_path)), strict=False)
+
 for epoch in range(N_EPOCH):
     running_loss = 0.0
     random.shuffle(files_train)
-    train_dataset = CQTsDataset(files_train[:batch_size*n_batchs], n_triplets=n_triplets)
+    train_dataset = CQTsDataset(files_train[:n_batches*batch_size])
     train_loader = DataLoader(
           dataset=train_dataset,
           batch_size=batch_size,
-          num_workers = 6,
+          num_workers = 6
           )
 
     model.train()
@@ -99,11 +99,13 @@ for epoch in range(N_EPOCH):
         writer.add_scalar('validation loss (Isophonics)',
                           running_loss / len(validation_loader),
                           epoch)
-    
+
+    scheduler.step(running_loss)
     # Save best model if validation loss is improved and update regularly last model state
     if running_loss <= best_loss:
         torch.save(model.state_dict(), "{0}weights/{1}_best.pt".format(root_path, name_exp))
         best_loss = running_loss
     
     torch.save(model.state_dict(), "{0}weights/{1}_last.pt".format(root_path, name_exp))
+        
 print('Finished Training')

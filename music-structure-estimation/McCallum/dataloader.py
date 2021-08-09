@@ -7,7 +7,7 @@ from torch.utils.data import Dataset
 class CQTsDataset(Dataset):
     """CQTs dataset."""
 
-    def __init__(self, n_files, n_triplets=16, bias=True, normalization='freq_based', delta=(16, 1, 96), dim_cqt=(72, 64)):
+    def __init__(self, n_files, n_triplets=16, bias=True, normalization='max', delta=(16, 1, 96), dim_cqt=(72, 64)):
 
         self.n_files = n_files
         self.delta = delta
@@ -30,11 +30,11 @@ class CQTsDataset(Dataset):
 
         # Normalization
         if self.normalization == 'max':
+            cqts = cqts / np.max(cqts + 1e-7)
+        elif self.normalization == 'log_max_centered':
+            cqts = np.log(cqts + 1e-7)
+            cqts = cqts - np.mean(cqts)
             cqts = cqts / np.max(cqts)
-        elif self.normalization == 'gaussian':
-            cqts = (cqts - np.mean(cqts)) / np.std(cqts)
-        elif self.normalization == 'freq_based':
-            cqts = cqts / np.linalg.norm(cqts, axis=(0,2), keepdims=True)
             
         
         cqts_batch = torch.empty(self.n_triplets, 3, self.dim_cqt[0], self.dim_cqt[1])
@@ -50,40 +50,40 @@ class CQTsDataset(Dataset):
     def sample_triplet(self, cqts):
         dp, dnmin, dnmax = self.delta
         L = np.shape(cqts)[0]
-        a = torch.randint(2, L - 1, (1,)).item()
-        p_inf = max(a - dp, 2)
-        nl_inf = max(a - dnmax, 2)
-        nr_inf = min(a + dnmin, L - 2)
-        p_sup = min(a + dp, L - 1)
-        nl_sup = max(a - dnmin + 1, 3)
-        nr_sup = min(a + dnmax, L - 1)
+        a = torch.randint(1, L-1, (1,)).item()
+        p_inf = max(a - dp, 0)
+        nl_inf = max(a - dnmax, 0)
+        nr_inf = min(a + dnmin, L)
+        p_sup = min(a + dp, L)
+        nl_sup = max(a - dnmin, 0)
+        nr_sup = min(a + dnmax, L)
         
-        if self.bias and 19 <= a <= L - 20:
+        if self.bias:
             sample_left = self.compare_segments(cqts, a)
-            (p_inf, p_sup) = (a + 1, p_sup) if sample_left else (p_inf, a)
-        if a in [2, L - 2]:
-            sample_left = (a != 2)
+            (p_inf, p_sup) = (a + 1, p_sup) if sample_left else (p_inf, a - 1)
         else:
             sample_left = torch.randint(2, (1,)).item()
         
         
         p, n = a, a
         while (a == p or a == n):
-            p = torch.randint(p_inf, p_sup, (1,)).item()
-            n = torch.randint(nl_inf, nl_sup, (1,)).item() if sample_left \
-                else torch.randint(nr_inf, nr_sup, (1,)).item()
+            p = torch.randint(p_inf, p_sup + 1, (1,)).item()
+            n = torch.randint(nl_inf, nl_sup + 1, (1,)).item() if sample_left \
+                else torch.randint(nr_inf, nr_sup + 1, (1,)).item()
             
             
         return a, p, n
     
     def append_cqts(self, cqts, low, high):
-        cqts_app = np.append(cqts[low], cqts[low + 1], axis=1)
-        for i in range(low + 2, high):
-            cqts_app = np.append(cqts_app, cqts[i], axis= 1)
-        return cqts_app
+        N, F, T = np.shape(cqts)
+        cqts_app = np.zeros((F, (high - low) * T))
+        for i, pos  in enumerate(range(low, high)):
+            if 0 <= pos < N:
+                cqts_app[:, i*16:(i+1)*16] = cqts[pos]        
+        return cqts_app  
     
     def compare_segments(self, cqts, a):
-        eps = 1e-7j
+        eps = 1e-8
         cqts_left1 = np.log(np.abs(np.fft.fft2(np.log(np.abs(self.append_cqts(cqts, a - 20, a - 12)) + eps))) + eps)
         cqts_left2 = np.log(np.abs(np.fft.fft2(np.log(np.abs(self.append_cqts(cqts, a - 8, a)) + eps))) + eps)
         cqts_right1 = np.log(np.abs(np.fft.fft2(np.log(np.abs(self.append_cqts(cqts, a, a + 8)) + eps))) + eps)

@@ -14,11 +14,11 @@ from utils import weighted_bce_loss
 print('libraries imported')
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "error")
-root_path = "/tsi/clusterhome/atiam-1005/M2-ATIAM-internship/music-structure-estimation/SSMnet/"
+root_path = "/tsi/clusterhome/atiam-1005/M2-ATIAM-internship/music-structure-estimation/Attention&SSM/"
 data_path_harmonix = "/tsi/clusterhome/atiam-1005/data/Harmonix/cqts/*"
 data_path_isoph = "/tsi/clusterhome/atiam-1005/data/Isophonics/cqts/*"
 
-name_exp = "from_less_fc_to_small_fc_lr1e-4_no_pretrain"
+name_exp = "from_less_fc_prob_lp_0.5_coeff0.4"
 writer = SummaryWriter('{0}runs/{1}'.format(root_path, name_exp))
 
 
@@ -40,7 +40,7 @@ print(len(files_val), 'validation examples')
 
 model = SSMnet().to(device)
 
-optimizer = optim.Adam(model.parameters(),lr=1e-4)
+optimizer = optim.Adam(model.parameters(),lr=5e-3)
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min')
 
 best_loss = float('inf')
@@ -51,32 +51,33 @@ with torch.no_grad():
         model.eval()
         running_loss = 0.0
         for i, (cqts, ssm) in enumerate(tqdm(validation_loader)):
-            ssm_hat = model(cqts)
-            val_loss = weighted_bce_loss(ssm_hat, ssm)
+            ssm_hat, prob_labels, _ = model(cqts)
+            _, val_loss = weighted_bce_loss(ssm_hat, ssm, prob_labels)
             running_loss += val_loss.item()
         # print statistics
         print('average validation loss (Isophonics): %.6f' %
               (running_loss / len(validation_loader)))
 
-#model.load_state_dict(torch.load('{0}weights/max_no_decay_25k_less_fc_low_lr_last.pt'.format(root_path)), strict=False)
-"""
+model.load_state_dict(torch.load('{0}weights/max_no_decay_25k_less_fc_low_lr_last.pt'.format(root_path)), strict=False)
+
 print('evaluating model with pretrained embeddings')
 
 with torch.no_grad():
         model.eval()
         running_loss = 0.0
         for i, (cqts, ssm) in enumerate(tqdm(validation_loader)):
-            ssm_hat = model(cqts)
-            val_loss = weighted_bce_loss(ssm_hat, ssm)
+            ssm_hat, prob_labels, _ = model(cqts)
+            _, val_loss = weighted_bce_loss(ssm_hat, ssm, prob_labels)
             running_loss += val_loss.item()
         # print statistics
         print('average validation loss (Isophonics): %.6f' %
               (running_loss / len(validation_loader)))
-"""
+
 
 
 for epoch in range(N_EPOCH):
     running_loss = 0.0
+    running_reg = 0.0
     random.shuffle(files_train)
     train_dataset = CQTsDataset(files_train)
     train_loader = DataLoader(
@@ -86,10 +87,11 @@ for epoch in range(N_EPOCH):
     model.train()
     print("EPOCH " + str(epoch + 1) + "/" + str(N_EPOCH))
     for i, (cqts, ssm) in enumerate(tqdm(train_loader)):
-        ssm_hat = model(cqts)
-        train_loss = weighted_bce_loss(ssm_hat, ssm)
-        train_loss.backward()
+        ssm_hat, prob_labels, _ = model(cqts)
+        loss_reg, train_loss = weighted_bce_loss(ssm_hat, ssm, prob_labels)
+        loss_reg.backward()
         running_loss += train_loss.item()
+        running_reg += (loss_reg.item() - train_loss.item()) 
         if (i + 1) % backward_size == 0:
             optimizer.step()
             optimizer.zero_grad()
@@ -100,6 +102,8 @@ for epoch in range(N_EPOCH):
     # print statistics
     print('average train loss: %.6f' %
                 (running_loss/len(train_loader)))
+    print('average reg loss: %.6f' %
+                (running_reg/len(train_loader)))
     # ...log the running loss
     writer.add_scalar('training loss',
                     running_loss / len(train_loader),
@@ -111,8 +115,8 @@ for epoch in range(N_EPOCH):
         model.eval()
         running_loss = 0.0
         for i, (cqts, ssm) in enumerate(tqdm(validation_loader)):
-            ssm_hat = model(cqts)
-            val_loss = weighted_bce_loss(ssm_hat, ssm)
+            ssm_hat, prob_labels, _ = model(cqts)
+            _, val_loss = weighted_bce_loss(ssm_hat, ssm, prob_labels)
             running_loss += val_loss.item()
         # print statistics
         print('average validation loss (Isophonics): %.6f' %
@@ -122,7 +126,7 @@ for epoch in range(N_EPOCH):
                           running_loss / len(validation_loader),
                           epoch)
 
-    #scheduler.step(running_loss)
+    scheduler.step(running_loss)
     # Save best model if validation loss is improved and update regularly last model state
     if running_loss <= best_loss:
         torch.save(model.state_dict(), "{0}weights/{1}_best.pt".format(root_path, name_exp))
