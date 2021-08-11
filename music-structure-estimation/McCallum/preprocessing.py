@@ -102,7 +102,7 @@ def label_beats(beats, boundaries, labels):
     return beats_labels
 
 if __name__ == "__main__":
-    data_path = "/tsi/clusterhome/atiam-1005/data/Harmonix/"
+    data_path = "/tsi/clusterhome/atiam-1005/data/Isophonics/"
     warnings.filterwarnings("ignore")
     paths = glob.glob(data_path + 'audio/*')
     random.shuffle(paths)

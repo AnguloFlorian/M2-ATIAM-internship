@@ -18,7 +18,7 @@ root_path = "/tsi/clusterhome/atiam-1005/M2-ATIAM-internship/music-structure-est
 data_path_harmonix = "/tsi/clusterhome/atiam-1005/data/Harmonix/cqts/*"
 data_path_isoph = "/tsi/clusterhome/atiam-1005/data/Isophonics/cqts/*"
 
-name_exp = "from_less_fc_prob_lp_0.5_coeff0.4"
+name_exp = "from_less_fc_attention"
 writer = SummaryWriter('{0}runs/{1}'.format(root_path, name_exp))
 
 
@@ -40,7 +40,7 @@ print(len(files_val), 'validation examples')
 
 model = SSMnet().to(device)
 
-optimizer = optim.Adam(model.parameters(),lr=5e-3)
+optimizer = optim.Adam(model.parameters(),lr=1e-3)
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min')
 
 best_loss = float('inf')

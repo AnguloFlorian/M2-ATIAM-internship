@@ -43,10 +43,6 @@ class ConvNet(nn.Module):
         #x = F.normalize(self.bnf1(F.relu(self.fc1(x))), p=2)
         
         return x
-    
-    def inference(self, x):
-        return self.apply_cnn(x)
-
 
 class SSMnet(ConvNet):
     def __init__(self, freeze_convs=False):

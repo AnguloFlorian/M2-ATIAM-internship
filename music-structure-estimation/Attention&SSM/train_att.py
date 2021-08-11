@@ -8,29 +8,25 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from dataloader import CQTsDataset
-from utils import triplet_loss
-from model import ConvNet
-
+from model import SSMnet
+from utils import weighted_bce_loss
 
 print('libraries imported')
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "error")
-root_path = "/tsi/clusterhome/atiam-1005/M2-ATIAM-internship/music-structure-estimation/McCallum/"
+root_path = "/tsi/clusterhome/atiam-1005/M2-ATIAM-internship/music-structure-estimation/Attention&SSM/"
 data_path_harmonix = "/tsi/clusterhome/atiam-1005/data/Harmonix/cqts/*"
-data_path_personal = "/tsi/clusterhome/atiam-1005/data/Personal/cqts/*"
 data_path_isoph = "/tsi/clusterhome/atiam-1005/data/Isophonics/cqts/*"
 
-name_exp = "less_fc_lr5e-5_alpha0.2_no_dropout"
+name_exp = "from_less_fc_attention1e-3_freeze"
 writer = SummaryWriter('{0}runs/{1}'.format(root_path, name_exp))
 
 
 N_EPOCH = 250
-batch_size = 6
-n_batches = 256
-n_triplets = 16
+batch_size = 1
+backward_size = 6
 
-files_train = glob.glob(data_path_personal)
-files_train.extend(glob.glob(data_path_harmonix))
+files_train = glob.glob(data_path_harmonix)
 files_val = glob.glob(data_path_isoph)
 
 val_dataset = CQTsDataset(files_val)
@@ -41,34 +37,43 @@ validation_loader = DataLoader(
 
 print(len(files_train), 'training examples')
 print(len(files_val), 'validation examples')
-model = ConvNet().to(device)
-optimizer = optim.Adam(model.parameters(), lr=5e-5)
+
+model = SSMnet().to(device)
+
+optimizer = optim.Adam(model.parameters(),lr=1e-3)
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min')
+
 best_loss = float('inf')
-#model.load_state_dict(torch.load('{0}weights/max_no_decay_25k_less_fc_low_lr_best.pt'.format(root_path)), strict=False)
+
+model.load_state_dict(torch.load('{0}weights/max_no_decay_25k_less_fc_low_lr_last.pt'.format(root_path)), strict=False)
+
 
 for epoch in range(N_EPOCH):
     running_loss = 0.0
+    running_reg = 0.0
     random.shuffle(files_train)
-    train_dataset = CQTsDataset(files_train[:n_batches*batch_size])
+    train_dataset = CQTsDataset(files_train)
     train_loader = DataLoader(
           dataset=train_dataset,
           batch_size=batch_size,
-          num_workers = 6
           )
-
     model.train()
     print("EPOCH " + str(epoch + 1) + "/" + str(N_EPOCH))
-    for i, data in enumerate(tqdm(train_loader)):
-        data = data.view(-1, 3, 72, 64).to(device)
-        # zero the parameter gradients
-        optimizer.zero_grad()
-        # forward + backward + optimize
-        a, p, n = model(data)
-        train_loss = triplet_loss(a, p, n, device)
-        train_loss.backward()
-        optimizer.step()
+    for i, (cqts, ssm) in enumerate(tqdm(train_loader)):
+        ssm_hat, att_scores = model(cqts)
+        maxi_att = torch.max(att_scores, axis=1)[0]
+        
+        loss_reg, train_loss = weighted_bce_loss(att_scores, ssm)
+        loss_reg.backward()
         running_loss += train_loss.item()
+        running_reg += (loss_reg.item() - train_loss.item()) 
+        if (i + 1) % backward_size == 0:
+            optimizer.step()
+            optimizer.zero_grad()
+    
+    optimizer.step()
+    optimizer.zero_grad()
+    
     # print statistics
     print('average train loss: %.6f' %
                 (running_loss/len(train_loader)))
@@ -82,15 +87,11 @@ for epoch in range(N_EPOCH):
     with torch.no_grad():
         model.eval()
         running_loss = 0.0
-        validation_loader = DataLoader(
-            dataset=val_dataset,
-            batch_size=batch_size,
-            num_workers = 6
-        )
-        for i, data in enumerate(tqdm(validation_loader)):
-            data = data.view(-1, 3, 72, 64).to(device)
-            a, p, n = model(data)
-            val_loss = triplet_loss(a, p, n, device)
+        for i, (cqts, ssm) in enumerate(tqdm(validation_loader)):
+            ssm_hat, att_scores = model(cqts)
+            maxi_att = torch.max(att_scores, axis=1)[0]
+            att_scores = att_scores/maxi_att[:,:,None]
+            _, val_loss = weighted_bce_loss(att_scores, ssm)
             running_loss += val_loss.item()
         # print statistics
         print('average validation loss (Isophonics): %.6f' %

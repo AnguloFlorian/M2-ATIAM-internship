@@ -3,22 +3,23 @@ from bisect import bisect
 import numpy as np
 import math
 
-def triplet_loss(a, p, n, device, alpha = 0.1):
+def triplet_loss(a, p, n, device, alpha = 0.2):
     # inputs :
     #   - a : anchor audio embeddings
     #   - p : positive example audio embeddings
     #   - n : negative example audio embeddings
     #   - alpha : parameter of the triplet loss (error margin)
     # output :
-    #   - triplet_loss computed with the L2-norm
+    #   - triplet_loss computed with the cosine distance
     
     loss = 0
     zero = torch.FloatTensor([0]).to(device)
 
-    for i in range(a.size(0)):
-        loss += torch.max(zero, torch.norm(a[i] - p[i])**2 - torch.norm(a[i] - n[i])**2 + alpha)
+    #for i in range(a.size(0)):
+    #    loss += torch.max(zero, torch.dot(a[i], p[i]) - torch.dot(a[i], n[i]) + alpha)
   
-    return loss
+    dist = torch.max(zero, torch.matmul(a, n.transpose(-2,-1)) - torch.matmul(a, p.transpose(-2,-1)) + alpha)
+    return torch.sum(torch.diagonal(dist))
 
 
 

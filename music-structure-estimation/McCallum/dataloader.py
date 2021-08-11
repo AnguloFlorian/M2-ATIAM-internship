@@ -79,7 +79,7 @@ class CQTsDataset(Dataset):
         cqts_app = np.zeros((F, (high - low) * T))
         for i, pos  in enumerate(range(low, high)):
             if 0 <= pos < N:
-                cqts_app[:, i*16:(i+1)*16] = cqts[pos]        
+                cqts_app[:, i*T:(i+1)*T] = cqts[pos]        
         return cqts_app  
     
     def compare_segments(self, cqts, a):

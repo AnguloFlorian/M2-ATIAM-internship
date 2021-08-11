@@ -111,12 +111,13 @@ class SSMnet(ConvNet):
         attention_scores = F.softmax(score, dim=-1)
         context = torch.bmm(attention_scores, embeds)
         
-        prob_labels = F.relu(self.fc_pred1(context))
-        prob_labels = F.softmax(self.fc_pred2(prob_labels), dim=-1)
+        #prob_labels = F.relu(self.fc_pred1(context))
+        #prob_labels = F.softmax(self.fc_pred2(prob_labels), dim=-1)
         
         if infer:
             return prob_labels, attention_scores
             
         else:   
-            ssm = torch.bmm(prob_labels, prob_labels.transpose(-2, -1))
-            return ssm, prob_labels, attention_scores
+            ssm = torch.bmm(context, context.transpose(-2, -1))
+            return ssm, attention_scores
+            #return ssm, prob_labels, attention_scores
