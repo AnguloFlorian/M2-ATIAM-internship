@@ -14,17 +14,17 @@ class SSMsDataset(Dataset):
         self.n_sampled = n_sampled
 
     def __len__(self):
-        return len(self.path_cqts)
+        return len(self.path_ssm)
 
     def __getitem__(self, idx):
         # Open numpy file of track i
         if torch.is_tensor(idx):
             idx = idx.tolist()
         try:
-            smm_packed = np.load(self.path_ssm[idx])
+            ssm_packed = np.load(self.path_ssm[idx])
             L = ssm_packed.shape[0]
         except ValueError:
-            print("An error occured with file {}".format(self.path_cqts[idx]))
+            print("An error occured with file {}".format(self.path_ssm[idx]))
         
         # Access the boundaries groundtruth
         boundaries = np.load(self.path_ssm[idx].replace('ssm', 'boundaries')).astype(np.int64)
@@ -41,7 +41,7 @@ class SSMsDataset(Dataset):
         ssm_packed = torch.from_numpy(ssm_packed[np.append(idx_positive, idx_negative)])
         boundaries = torch.from_numpy(boundaries[np.append(idx_positive, idx_negative)]) 
         
-        return ssm_packed.float().to(device), boundaries.float().to(device)
+        return ssm_packed.float().to(self.device), boundaries.float().to(self.device)
 
     
     def append_cqts(self, cqts, low, high, nt):

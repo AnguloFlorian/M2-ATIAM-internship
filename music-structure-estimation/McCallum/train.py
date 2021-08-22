@@ -10,7 +10,7 @@ from torch.utils.tensorboard import SummaryWriter
 from dataloader import CQTsDataset
 from utils import triplet_loss
 from model import ConvNet
-
+from madgrad import madgrad_wd
 
 print('libraries imported')
 
@@ -20,7 +20,7 @@ data_path_harmonix = "/tsi/clusterhome/atiam-1005/data/Harmonix/cqts/*"
 data_path_personal = "/tsi/clusterhome/atiam-1005/data/Personal/cqts/*"
 data_path_isoph = "/tsi/clusterhome/atiam-1005/data/Isophonics/cqts/*"
 
-name_exp = "less_fc_lr5e-5_alpha0.2_no_dropout"
+name_exp = "less_fc_a0.25_lr1e-4_wd_1e-2_group_nmin16"
 writer = SummaryWriter('{0}runs/{1}'.format(root_path, name_exp))
 
 
@@ -30,8 +30,8 @@ n_batches = 256
 n_triplets = 16
 
 files_train = glob.glob(data_path_personal)
-files_train.extend(glob.glob(data_path_harmonix))
 files_val = glob.glob(data_path_isoph)
+files_val.extend(glob.glob(data_path_harmonix))
 
 val_dataset = CQTsDataset(files_val)
 validation_loader = DataLoader(
@@ -42,14 +42,15 @@ validation_loader = DataLoader(
 print(len(files_train), 'training examples')
 print(len(files_val), 'validation examples')
 model = ConvNet().to(device)
-optimizer = optim.Adam(model.parameters(), lr=5e-5)
+#optimizer = optim.Adam(model.parameters(), lr=1e-4)
+optimizer = madgrad_wd(model.parameters(), lr=1e-4, weight_decay=0.01)
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min')
 best_loss = float('inf')
-#model.load_state_dict(torch.load('{0}weights/max_no_decay_25k_less_fc_low_lr_best.pt'.format(root_path)), strict=False)
 
 for epoch in range(N_EPOCH):
     running_loss = 0.0
     random.shuffle(files_train)
+    print(files_train[0], files_train[n_batches*batch_size])
     train_dataset = CQTsDataset(files_train[:n_batches*batch_size])
     train_loader = DataLoader(
           dataset=train_dataset,
@@ -100,7 +101,7 @@ for epoch in range(N_EPOCH):
                           running_loss / len(validation_loader),
                           epoch)
 
-    scheduler.step(running_loss)
+    #scheduler.step(running_loss)
     # Save best model if validation loss is improved and update regularly last model state
     if running_loss <= best_loss:
         torch.save(model.state_dict(), "{0}weights/{1}_best.pt".format(root_path, name_exp))

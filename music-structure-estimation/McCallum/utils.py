@@ -3,7 +3,7 @@ from bisect import bisect
 import numpy as np
 import math
 
-def triplet_loss(a, p, n, device, alpha = 0.2):
+def triplet_loss(a, p, n, device, alpha = 0.25, dist='cosine'):
     # inputs :
     #   - a : anchor audio embeddings
     #   - p : positive example audio embeddings
@@ -14,12 +14,13 @@ def triplet_loss(a, p, n, device, alpha = 0.2):
     
     loss = 0
     zero = torch.FloatTensor([0]).to(device)
-
-    #for i in range(a.size(0)):
-    #    loss += torch.max(zero, torch.dot(a[i], p[i]) - torch.dot(a[i], n[i]) + alpha)
-  
-    dist = torch.max(zero, torch.matmul(a, n.transpose(-2,-1)) - torch.matmul(a, p.transpose(-2,-1)) + alpha)
-    return torch.sum(torch.diagonal(dist))
+    if dist == 'euclidean':
+        dist = torch.max(zero, torch.linalg.norm(a - p, dim=1)**2 - torch.linalg.norm(a - n, dim=1)**2 + alpha)
+        return torch.sum(dist)
+    elif dist == 'cosine':
+        dist = torch.max(zero, torch.matmul(a, n.transpose(-2,-1)) - torch.matmul(a, p.transpose(-2,-1)) + alpha)
+        return torch.sum(torch.diagonal(dist))
+        
 
 
 

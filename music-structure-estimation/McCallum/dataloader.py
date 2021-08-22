@@ -7,7 +7,7 @@ from torch.utils.data import Dataset
 class CQTsDataset(Dataset):
     """CQTs dataset."""
 
-    def __init__(self, n_files, n_triplets=16, bias=True, normalization='max', delta=(16, 1, 96), dim_cqt=(72, 64)):
+    def __init__(self, n_files, n_triplets=16, bias=True, normalization='max', delta=(16, 16, 96), dim_cqt=(72, 64)):
 
         self.n_files = n_files
         self.delta = delta
@@ -32,9 +32,9 @@ class CQTsDataset(Dataset):
         if self.normalization == 'max':
             cqts = cqts / np.max(cqts + 1e-7)
         elif self.normalization == 'log_max_centered':
-            cqts = np.log(cqts + 1e-7)
+            cqts = np.log(cqts + 5e-3)
             cqts = cqts - np.mean(cqts)
-            cqts = cqts / np.max(cqts)
+            cqts = cqts / np.max(np.abs(cqts))
             
         
         cqts_batch = torch.empty(self.n_triplets, 3, self.dim_cqt[0], self.dim_cqt[1])

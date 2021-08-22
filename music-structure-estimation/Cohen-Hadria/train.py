@@ -17,7 +17,7 @@ root_path = "/tsi/clusterhome/atiam-1005/M2-ATIAM-internship/music-structure-est
 data_path_harmonix = "/tsi/clusterhome/atiam-1005/data/Harmonix/ssm/*"
 data_path_isoph = "/tsi/clusterhome/atiam-1005/data/Isophonics/ssm/*"
 
-name_exp = "first_exp"
+name_exp = "bigger_fc_lr5e-5_reduced_dropout"
 writer = SummaryWriter('{0}runs/{1}'.format(root_path, name_exp))
 
 
@@ -27,7 +27,7 @@ batch_size = 8
 files_train = glob.glob(data_path_harmonix)
 files_val = glob.glob(data_path_isoph)
 
-val_dataset = CQTsDataset(files_val)
+val_dataset = SSMsDataset(files_val)
 validation_loader = DataLoader(
     dataset=val_dataset,
     batch_size=batch_size,
@@ -38,7 +38,7 @@ print(len(files_val), 'validation examples')
 
 model = CohenNet().to(device)
 
-optimizer = optim.Adam(model.parameters(),lr=1e-4)
+optimizer = optim.Adam(model.parameters(),lr=5e-5)
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min')
 bce_loss = torch.nn.BCELoss()
 best_loss = float('inf')
@@ -47,7 +47,7 @@ best_loss = float('inf')
 for epoch in range(N_EPOCH):
     running_loss = 0.0
     random.shuffle(files_train)
-    train_dataset = CQTsDataset(files_train)
+    train_dataset = SSMsDataset(files_train)
     train_loader = DataLoader(
           dataset=train_dataset,
           batch_size=batch_size,
@@ -56,6 +56,7 @@ for epoch in range(N_EPOCH):
     print("EPOCH " + str(epoch + 1) + "/" + str(N_EPOCH))
     for i, (ssm, boundaries) in enumerate(tqdm(train_loader)):
         ssm = ssm.view(-1, 3, 8, 8)
+        boundaries = boundaries.view(-1, 1)
         probs = model(ssm)
         train_loss = bce_loss(probs, boundaries)
         train_loss.backward()
@@ -76,11 +77,11 @@ for epoch in range(N_EPOCH):
     with torch.no_grad():
         model.eval()
         running_loss = 0.0
-        for i, (cqts, ssm) in enumerate(tqdm(validation_loader)):
+        for i, (ssm, boundaries) in enumerate(tqdm(validation_loader)):
             ssm = ssm.view(-1, 3, 8, 8)
+            boundaries = boundaries.view(-1, 1)
             probs = model(ssm)
             val_loss = bce_loss(probs, boundaries)
-            val_loss.backward()
             running_loss += val_loss.item()
             optimizer.step()
             optimizer.zero_grad()

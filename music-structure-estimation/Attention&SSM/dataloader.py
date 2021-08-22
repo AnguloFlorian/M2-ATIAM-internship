@@ -8,10 +8,10 @@ from torch.utils.data import Dataset
 class CQTsDataset(Dataset):
     """CQTs dataset."""
 
-    def __init__(self, path_cqts):   
+    def __init__(self, path_cqts, normalization='max'):   
         self.path_cqts = path_cqts
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "error")
-
+        self.normalization = normalization
     def __len__(self):
         return len(self.path_cqts)
 
@@ -26,7 +26,14 @@ class CQTsDataset(Dataset):
             print("An error occured with file {}".format(self.path_cqts[idx]))
         
         
-        cqts = cqts / np.max(cqts)
+
+        # Normalization
+        if self.normalization == 'max':
+            cqts = cqts / np.max(cqts)
+        elif self.normalization == 'log_max_centered':
+            cqts = np.log(cqts + 5e-3)
+            cqts = cqts - np.mean(cqts)
+            cqts = cqts / np.max(np.abs(cqts))
         
         # Access the segmentation labels
         labels = np.load(self.path_cqts[idx].replace('cqts', 'beats_labels'))[:, 1].astype(np.int64)

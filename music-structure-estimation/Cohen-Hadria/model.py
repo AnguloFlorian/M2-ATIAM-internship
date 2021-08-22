@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
@@ -53,8 +54,8 @@ class ConvNet(nn.Module):
         
         
 class CohenNet(nn.Module):
-    def __init__(self):
-        super(CohenNet, self, n_channels=3).__init__()
+    def __init__(self, n_channels=3):
+        super(CohenNet, self).__init__()
         kernel_conv = (3, 3)
         self.pad1 = get_pad((8, 8), kernel_conv) 
         self.conv1 = nn.Conv2d(n_channels, 16, kernel_conv)
@@ -65,11 +66,10 @@ class CohenNet(nn.Module):
         self.bnc2 = nn.BatchNorm2d(32)
         self.pool2 = nn.MaxPool2d(kernel_size=(2, 2))
         self.resize = 2 * 2 * 32
-        self.fc1 = nn.Linear(self.resize, 32)
+        self.fc1 = nn.Linear(self.resize, 64)
         self.fc2 = nn.Linear(64, 1)
-        self.dropout = nn.Dropout(0.5)   
-        
-        return x
+        self.dropout = nn.Dropout(0.3)   
+
 
     def forward(self, x):
         x = self.pool1(self.bnc1(F.relu(self.conv1(F.pad(x,self.pad1)))))
