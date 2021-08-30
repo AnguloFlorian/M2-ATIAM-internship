@@ -20,7 +20,7 @@ data_path_harmonix = "/tsi/clusterhome/atiam-1005/data/Harmonix/cqts/*"
 data_path_personal = "/tsi/clusterhome/atiam-1005/data/Personal/cqts/*"
 data_path_isoph = "/tsi/clusterhome/atiam-1005/data/Isophonics/cqts/*"
 
-name_exp = "less_fc_a0.25_lr1e-4_wd_1e-2_group_nmin16"
+name_exp = "less_fc_a0.2_lr1e-4_wd_1e-2_group_nmin1_relu"
 writer = SummaryWriter('{0}runs/{1}'.format(root_path, name_exp))
 
 

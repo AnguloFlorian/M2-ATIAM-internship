@@ -19,7 +19,7 @@ root_path = "/tsi/clusterhome/atiam-1005/M2-ATIAM-internship/music-structure-est
 data_path_harmonix = "/tsi/clusterhome/atiam-1005/data/Harmonix/cqts/*"
 data_path_isoph = "/tsi/clusterhome/atiam-1005/data/Isophonics/cqts/*"
 
-name_exp = "no_freeze_fc1_2fc(enfait3)_nm16(real_freeze)_pdist"
+name_exp = "no_freeze_f1_fine_tune_a02_euc_lr5e-3_wd1e-2_harmonix"
 writer = SummaryWriter('{0}runs/{1}'.format(root_path, name_exp))
 
 
@@ -27,8 +27,8 @@ N_EPOCH = 250
 batch_size = 1
 backward_size = 6
 
-files_train = glob.glob(data_path_harmonix)
-files_val = glob.glob(data_path_isoph)
+files_train = glob.glob(data_path_isoph)
+files_val = glob.glob(data_path_harmonix)
 
 val_dataset = CQTsDataset(files_val)
 validation_loader = DataLoader(
@@ -41,7 +41,7 @@ print(len(files_val), 'validation examples')
 
 model = SSMnet().to(device)
 
-optimizer = madgrad_wd(model.parameters(), lr=5e-4, weight_decay=0.0)
+optimizer = madgrad_wd(model.parameters(), lr=5e-3, weight_decay=0.01)
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min')
 
 best_loss = float('inf')
@@ -56,13 +56,8 @@ with torch.no_grad():
             embeds = model.apply_cnn(cqts.transpose(0, 1)).unsqueeze(0)
             cqts_flat = torch.nn.functional.normalize(cqts.reshape(1, -1, 72*64), p=2)
             _, T, _ = cqts_flat.shape
-            #ssm_cqts = torch.zeros(T,T).cuda()
-            #for j in range(T):
-            #    for k in range(T):
-            #        ssm_cqts[j, k] = torch.linalg.norm(cqts_flat[0, j]-cqts_flat[0,k], 2)
             ssm_cqts = torch.cdist(cqts_flat, cqts_flat)
             ssm_cqts = 1 - ssm_cqts/torch.max(ssm_cqts)
-            #ssm_hat = 0.5*(1 + torch.bmm(embeds, embeds.transpose(-2, -1)))
             ssm_hat = torch.cdist(embeds, embeds)
             ssm_hat = 1 - ssm_hat/torch.max(ssm_hat)
             val_loss = weighted_bce_loss(ssm_hat, ssm)
@@ -75,7 +70,7 @@ with torch.no_grad():
         print('average cqts loss (Isophonics): %.6f' %
               (running_loss_cqts / len(validation_loader)))
 
-model.load_state_dict(torch.load('{0}weights/best_a0.2nm16.pt'.format(root_path)), strict=False)
+model.load_state_dict(torch.load('{0}weights/best_a02.pt'.format(root_path)), strict=False)
 
 print('evaluating model with pretrained embeddings')
 
@@ -84,21 +79,11 @@ with torch.no_grad():
         running_loss = 0.0
         for i, (cqts, ssm) in enumerate(tqdm(validation_loader)):
             embeds = model.apply_cnn(cqts.transpose(0, 1)).unsqueeze(0)
-            cqts_flat = torch.nn.functional.normalize(cqts.reshape(1, -1, 72*64), p=2)
-            _, T, _ = cqts_flat.shape
-            #ssm_cqts = torch.zeros(T,T).cuda()
-            #for j in range(T):
-            #    for k in range(T):
-            #        ssm_cqts[j, k] = torch.linalg.norm(cqts_flat[0, j]-cqts_flat[0,k], 2)
-            ssm_cqts = torch.cdist(cqts_flat, cqts_flat)
-            ssm_cqts = 1 - ssm_cqts/torch.max(ssm_cqts)
-            #ssm_hat = 0.5*(1 + torch.bmm(embeds, embeds.transpose(-2, -1)))
             ssm_hat = torch.cdist(embeds, embeds)
             ssm_hat = 1 - ssm_hat/torch.max(ssm_hat)
             val_loss = weighted_bce_loss(ssm_hat, ssm)
-            cqts_loss = weighted_bce_loss(ssm_cqts, ssm)
             running_loss += val_loss.item()
-            running_loss_cqts += cqts_loss.item()
+
         # print statistics
         print('average validation loss (Isophonics): %.6f' %
               (running_loss / len(validation_loader)))

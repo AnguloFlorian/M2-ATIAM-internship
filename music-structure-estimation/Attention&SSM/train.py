@@ -19,7 +19,7 @@ root_path = "/tsi/clusterhome/atiam-1005/M2-ATIAM-internship/music-structure-est
 data_path_harmonix = "/tsi/clusterhome/atiam-1005/data/Harmonix/cqts/*"
 data_path_isoph = "/tsi/clusterhome/atiam-1005/data/Isophonics/cqts/*"
 
-name_exp = "rel_att_BIG_no_pretrain"
+name_exp = "rel_att_best_ssmnet_residual_freeze_mh"
 writer = SummaryWriter('{0}runs/{1}'.format(root_path, name_exp))
 
 
@@ -41,40 +41,15 @@ print(len(files_val), 'validation examples')
 
 model = SSMnet().to(device)
 
-optimizer = madgrad_wd(model.parameters(), lr=5e-5, weight_decay=0.0)
+
+
+
+optimizer = madgrad_wd(model.parameters(), lr=5e-4, weight_decay=0.0)
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min')
 
 best_loss = float('inf')
 
-
-print('evaluation untrained model')
-with torch.no_grad():
-        model.eval()
-        running_loss = 0.0
-        for i, (cqts, ssm) in enumerate(tqdm(validation_loader)):
-            ssm_hat = model(cqts)
-            val_loss = weighted_bce_loss(ssm_hat, ssm)
-            running_loss += val_loss.item()
-        # print statistics
-        print('average validation loss (Isophonics): %.6f' %
-              (running_loss / len(validation_loader)))
-
-#model.load_state_dict(torch.load('{0}weights/best_a0.2.pt'.format(root_path)), strict=False)
-
-print('evaluating model with pretrained embeddings')
-
-with torch.no_grad():
-        model.eval()
-        running_loss = 0.0
-        for i, (cqts, ssm) in enumerate(tqdm(validation_loader)):
-            ssm_hat = model(cqts)
-            val_loss = weighted_bce_loss(ssm_hat, ssm)
-            running_loss += val_loss.item()
-        # print statistics
-        print('average validation loss (Isophonics): %.6f' %
-              (running_loss / len(validation_loader)))
-
-
+model.load_state_dict(torch.load('{0}weights/best_ssmnet.pt'.format(root_path)), strict=False)
 
 for epoch in range(N_EPOCH):
     running_loss = 0.0
@@ -90,6 +65,7 @@ for epoch in range(N_EPOCH):
         ssm_hat = model(cqts)
         train_loss = weighted_bce_loss(ssm_hat, ssm)
         train_loss.backward()
+        model.zero_grad_cnn()
         running_loss += train_loss.item()
         if (i + 1) % backward_size == 0:
             optimizer.step()

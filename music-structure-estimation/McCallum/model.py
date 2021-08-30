@@ -26,7 +26,7 @@ class ConvNet(nn.Module):
         self.fc1 = nn.Linear(self.resize, 128)
         self.fc2 = nn.Linear(128, 128)
         self.fc3 = nn.Linear(128, 128)
-        self.selu = nn.SELU()
+        self.selu = nn.ReLU()
     def apply_cnn(self,x):
         x = x.unsqueeze(1) # for 1 channel
         x = self.pool1(self.bnc1(self.selu(self.conv1(F.pad(x,self.pad1)))))

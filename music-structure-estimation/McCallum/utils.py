@@ -3,7 +3,7 @@ from bisect import bisect
 import numpy as np
 import math
 
-def triplet_loss(a, p, n, device, alpha = 0.25, dist='cosine'):
+def triplet_loss(a, p, n, device, alpha = 0.2, dist='cosine'):
     # inputs :
     #   - a : anchor audio embeddings
     #   - p : positive example audio embeddings

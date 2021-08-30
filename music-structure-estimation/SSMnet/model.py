@@ -69,7 +69,7 @@ class SSMnet(ConvNet):
             self.freeze_layer(self.conv3)
             self.freeze_layer(self.bnc3)
             self.freeze_layer(self.pool3)
-            self.freeze_layer(self.fc1)
+            #self.freeze_layer(self.fc1)
     
     
     def freeze_layer(self, layer):
@@ -80,10 +80,9 @@ class SSMnet(ConvNet):
     def forward(self, x):
         # Compute embeddings from all beats
         embeds = super(SSMnet, self).apply_cnn(x.transpose(0, 1)).unsqueeze(0) 
-        embeds = self.selu(self.fc2sm(embeds))
-        embeds = F.normalize(self.selu(self.fc3sm(embeds)), p=2)
+        #embeds = F.normalize(self.selu(self.fc2sm(embeds)), p=2)
+        #embeds = F.normalize(self.selu(self.fc3sm(embeds)), p=2)
         # Compute the SSM
-        ssm = torch.cdist(embeds, embeds)
-        ssm = 1 - ssm/torch.max(ssm)
-        #ssm = 0.5*(1 + torch.bmm(embeds, embeds.transpose(-2, -1)))
-        return ssm
+        smm_hat = torch.cdist(embeds, embeds, 2)
+        smm_hat = 1 - smm_hat/torch.max(smm_hat)
+        return smm_hat

@@ -7,7 +7,7 @@ from torch.utils.data import Dataset
 class CQTsDataset(Dataset):
     """CQTs dataset."""
 
-    def __init__(self, n_files, n_triplets=16, bias=True, normalization='max', delta=(16, 16, 96), dim_cqt=(72, 64)):
+    def __init__(self, n_files, n_triplets=16, bias=True, normalization='max', delta=(16, 1, 96), dim_cqt=(72, 64)):
 
         self.n_files = n_files
         self.delta = delta

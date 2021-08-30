@@ -4,27 +4,29 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import math
-
+from torch.autograd import Variable
 from torch_same_pad import get_pad
 
 class PositionalEncoding(nn.Module):
-    """Positional encoding."""
-    def __init__(self, num_hiddens, dropout, max_len=2048):
+    "Implement the PE function."
+    def __init__(self, d_model, dropout, max_len=2500):
         super(PositionalEncoding, self).__init__()
-        self.dropout = nn.Dropout(dropout)
-        # Create a long enough `P`
-        self.P = torch.zeros((1, max_len, num_hiddens))
-        X = torch.arange(max_len, dtype=torch.float32).reshape(
-            -1, 1) / torch.pow(
-                10000,
-                torch.arange(0, num_hiddens, 2, dtype=torch.float32) /
-                num_hiddens)
-        self.P[:, :, 0::2] = torch.sin(X)
-        self.P[:, :, 1::2] = torch.cos(X)
-
-    def forward(self, X):
-        X = X + self.P[:, :X.shape[1], :].to(X.device)
-        return self.dropout(X)
+        self.dropout = nn.Dropout(p=dropout)
+        
+        # Compute the positional encodings once in log space.
+        pe = torch.zeros(max_len, d_model)
+        position = torch.arange(0, max_len).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2) *
+                             -(math.log(10000.0) / d_model))
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        pe = pe.unsqueeze(0)
+        self.register_buffer('pe', pe)
+        
+    def forward(self, x):
+        x = x + Variable(self.pe[:, :x.size(1)], 
+                         requires_grad=False)
+        return self.dropout(x)
 
 
 class GlobalAttention(nn.Module):
@@ -36,8 +38,7 @@ class GlobalAttention(nn.Module):
         self.value = nn.Linear(d_model, d_model)
         self.query = nn.Linear(d_model, d_model)
         #self.mask.shape = (1, 1, max_len, max_len)
-        self.selu = nn.SELU()
-        self.activation = nn.Identity()
+
         self.pos = PositionalEncoding(d_model, dropout, max_len)
         mask = torch.tril(torch.ones(1, 1, max_len, max_len))
         self.register_buffer(
@@ -53,10 +54,10 @@ class GlobalAttention(nn.Module):
                 "sequence length exceeds model capacity"
             )
         
-        k_t = self.activation(self.key(x)).transpose(-1,-2)
+        k_t = self.key(x).transpose(-1,-2)
         # k_t.shape = (batch_size, d_model, seq_len)
-        v = self.activation(self.value(x))
-        q = self.activation(self.query(x))
+        v = self.value(x)
+        q = self.query(x)
         # shape = (batch_size, seq_len, d_model)
         
         Pos = self.pos(x).transpose(-1, -2)
@@ -96,12 +97,12 @@ class RelativeGlobalAttention(nn.Module):
             "mask", 
             mask
         )
+        self.identity = nn.Identity()
         #self.mask.shape = (1, 1, max_len, max_len)
-        self.selu = nn.SELU()
-        self.activation = nn.Identity()
           
     def forward(self, x):
         # x.shape == (batch_size, seq_len, d_model)
+        residual = self.identity(x)
         batch_size, seq_len, _ = x.shape
         
         if seq_len > self.max_len:
@@ -109,10 +110,10 @@ class RelativeGlobalAttention(nn.Module):
                 "sequence length exceeds model capacity"
             )
         
-        k_t = self.activation(self.key(x).reshape(batch_size, seq_len, self.num_heads, -1).permute(0, 2, 3, 1))
+        k_t = self.key(x).reshape(batch_size, seq_len, self.num_heads, -1).permute(0, 2, 3, 1)
         # k_t.shape = (batch_size, num_heads, d_head, seq_len)
-        v = self.activation(self.value(x).reshape(batch_size, seq_len, self.num_heads, -1).transpose(1, 2))
-        q = self.activation(self.query(x).reshape(batch_size, seq_len, self.num_heads, -1).transpose(1, 2))
+        v = self.value(x).reshape(batch_size, seq_len, self.num_heads, -1).transpose(1, 2)
+        q = self.query(x).reshape(batch_size, seq_len, self.num_heads, -1).transpose(1, 2)
         # shape = (batch_size, num_heads, seq_len, d_head)
         
         start = self.max_len - seq_len
@@ -126,9 +127,6 @@ class RelativeGlobalAttention(nn.Module):
         QK_t = torch.matmul(q, k_t)
         # QK_t.shape = (batch_size, num_heads, seq_len, seq_len)
         attn = (QK_t + Srel) / math.sqrt(q.size(-1))
-        mask = self.mask[:, :, :seq_len, :seq_len]
-        # mask.shape = (1, 1, seq_len, seq_len)
-        attn = attn.masked_fill(mask == 0, float("-inf"))
         # attn.shape = (batch_size, num_heads, seq_len, seq_len)
         attn = F.softmax(attn, dim=-1)
         out = torch.matmul(attn, v)
@@ -137,7 +135,8 @@ class RelativeGlobalAttention(nn.Module):
         # out.shape == (batch_size, seq_len, num_heads, d_head)
         out = out.reshape(batch_size, seq_len, -1)
         # out.shape == (batch_size, seq_len, d_model)
-        return self.dropout(out)
+        out += residual
+        return out
         
     
     def skew(self, QEr):
@@ -173,20 +172,16 @@ class ConvNet(nn.Module):
         self.bnc3 = nn.GroupNorm(32, 128)
         self.pool3 = nn.MaxPool2d(kernel_size=(3, 2))
         self.resize = 4 * 2 * 128
-        self.fc1 = nn.Linear(self.resize, 512)
-        self.fc2 = nn.Linear(512, 256)
-        self.fc3 = nn.Linear(256, 128)
+        self.fc1 = nn.Linear(self.resize, 128)
         self.selu = nn.SELU()
+    
     def apply_cnn(self,x):
         #x = x.unsqueeze(1) # for 1 channel
         x = self.pool1(self.bnc1(self.selu(self.conv1(F.pad(x,self.pad1)))))
         x = self.pool2(self.bnc2(self.selu(self.conv2(F.pad(x,self.pad2)))))
         x = self.pool3(self.bnc3(self.selu(self.conv3(F.pad(x,self.pad3)))))
         x = x.view(-1, self.resize)
-        x = self.selu(self.fc1(x))
-        x = self.selu(self.fc2(x))
-        x = F.normalize(self.selu(self.fc3(x)), p=2)
-        #x = F.normalize(self.selu(self.fc1(x)), p=2)
+        x = F.normalize(self.selu(self.fc1(x)), p=2)
         return x
 
     def forward(self, x):
@@ -201,13 +196,19 @@ class ConvNet(nn.Module):
 
 
 class SSMnet(ConvNet):
-    def __init__(self, freeze_convs=False, d_model=128, num_heads=4, max_len=2048, dropout=0):
+    def __init__(self, freeze_convs=False, d_model=128, num_heads=1, max_len=2048, dropout=0):
         super(SSMnet, self).__init__()
         self.sqrt_dim = np.sqrt(d_model)
-        self.rel_att = RelativeGlobalAttention(d_model, num_heads)
-        self.glob_att = GlobalAttention(d_model, max_len)
-        self.fc2s = nn.Linear(128, 64)
-        self.fc3s = nn.Linear(64, 32)
+        #self.rel_att = RelativeGlobalAttention(d_model, num_heads)
+        #self.glob_att = GlobalAttention(d_model, max_len)
+        self.max_len = max_len
+        self.d_model = d_model
+        self.key = nn.Linear(d_model, d_model)
+        self.value = nn.Linear(d_model, d_model)
+        self.query = nn.Linear(d_model, d_model)
+        self.pos = PositionalEncoding(d_model, dropout, max_len)  
+        self.identity = nn.Identity()
+        self.mh_att = nn.MultiheadAttention(embed_dim=d_model, num_heads=4)
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         if freeze_convs:
             self.freeze_layer(self.conv1)
@@ -220,26 +221,58 @@ class SSMnet(ConvNet):
             self.freeze_layer(self.bnc3)
             self.freeze_layer(self.pool3)
             self.freeze_layer(self.fc1)
-            #self.freeze_layer(self.fc2)
-            #self.freeze_layer(self.fc3)
 
-        
     def freeze_layer(self, layer):
-        for param in layer.parameters():
-            param.requires_grad = False
+        for p in layer.parameters():
+            p.requires_grad = False        
+            
+    def zero_grad_cnn(self):
+        self.conv1.zero_grad()
+        self.bnc1.zero_grad()
+        self.pool1.zero_grad()
+        self.conv2.zero_grad()
+        self.bnc2.zero_grad()
+        self.pool2.zero_grad()
+        self.conv3.zero_grad()
+        self.bnc3.zero_grad()
+        self.pool3.zero_grad()
+        self.fc1.zero_grad()
     
     
     def forward(self, x, infer=False):
         # Compute embeddings from all beats
         embeds = super(SSMnet, self).apply_cnn(x.transpose(0, 1)).unsqueeze(0)
-        #embeds = self.selu(self.fc3(self.relu(self.fc3(embeds))))
-        # Apply relative global attention     
-        embeds_att = F.normalize(self.rel_att(embeds), p=2)
+        # Apply relative global attention
+        # x.shape == (batch_size, seq_len, d_model)
+        residual = self.identity(embeds)
+        batch_size, seq_len, _ = embeds.shape
         
+        if seq_len > self.max_len:
+            raise ValueError(
+                "sequence length exceeds model capacity"
+            )
+        q = self.query(embeds)
+        k = self.key(embeds)
+        v = self.value(embeds)
+        # shape = (batch_size, seq_len, d_model)
+        k_pos = self.pos(k)
+        #QK_t = torch.matmul(q , k_pos)
+        # QK_t.shape = (batch_size, seq_len, seq_len)
+        #attn = QK_t / math.sqrt(q.size(-1))
+        # attn.shape = (batch_size, seq_len, seq_len)
+        #attn = torch.sigmoid(attn)
+        #attn = F.softmax(attn, dim=-1)
+        #out = F.normalize(torch.matmul(attn, v), p=2)
+        # out.shape == (batch_size, seq_len, d_model)
+        #out += residual
+        out, _ = self.mh_att(q.transpose(0,1),k_pos.transpose(0,1),v.transpose(0,1))
         
-        ssm = 0.5*(1 + torch.bmm(embeds_att, embeds_att.transpose(-2, -1)))
+        embeds_att = F.normalize(residual + out.transpose(0,1), p=2)
+        print(embeds_att.shape)
+        smm_hat = torch.cdist(embeds_att.transpose(0,1), embeds_att.transpose(0,1), 2)
+        smm_hat = 1 - smm_hat/torch.max(smm_hat)
         
-        return ssm
+        return smm_hat
         
 
 
