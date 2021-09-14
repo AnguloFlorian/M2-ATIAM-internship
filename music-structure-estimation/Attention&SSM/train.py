@@ -11,6 +11,7 @@ from dataloader import CQTsDataset
 from model import SSMnet
 from utils import weighted_bce_loss
 from madgrad import madgrad_wd
+import numpy as np
 
 print('libraries imported')
 
@@ -19,7 +20,7 @@ root_path = "/tsi/clusterhome/atiam-1005/M2-ATIAM-internship/music-structure-est
 data_path_harmonix = "/tsi/clusterhome/atiam-1005/data/Harmonix/cqts/*"
 data_path_isoph = "/tsi/clusterhome/atiam-1005/data/Isophonics/cqts/*"
 
-name_exp = "rel_att_best_ssmnet_residual_freeze_mh"
+name_exp = "for_results"
 writer = SummaryWriter('{0}runs/{1}'.format(root_path, name_exp))
 
 
@@ -42,12 +43,32 @@ print(len(files_val), 'validation examples')
 model = SSMnet().to(device)
 
 
-
+losses_att = np.zeros((len(validation_loader)))
 
 optimizer = madgrad_wd(model.parameters(), lr=5e-4, weight_decay=0.0)
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min')
 
 best_loss = float('inf')
+
+model.load_state_dict(torch.load('{0}best_self_att.pt'.format(root_path)), strict=False)
+
+print('evaluating model with best loss')
+
+with torch.no_grad():
+        model.eval()
+        running_loss = 0.0
+        for i, (cqts, ssm) in enumerate(tqdm(validation_loader)):
+            embeds = model.apply_cnn(cqts.transpose(0, 1)).unsqueeze(0)
+            ssm_hat = torch.cdist(embeds, embeds)
+            ssm_hat = 1 - ssm_hat/torch.max(ssm_hat)
+            val_loss = weighted_bce_loss(ssm_hat, ssm)
+            running_loss += val_loss.item()
+            losses_att[i] =  val_loss
+        # print statistics
+        print('average validation loss (Isophonics): %.6f' %
+              (running_loss / len(validation_loader)))
+
+np.save(root_path + "losses_att", losses_att)
 
 model.load_state_dict(torch.load('{0}weights/best_ssmnet.pt'.format(root_path)), strict=False)
 

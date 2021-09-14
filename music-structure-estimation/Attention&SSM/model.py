@@ -28,7 +28,7 @@ class PositionalEncoding(nn.Module):
                          requires_grad=False)
         return self.dropout(x)
 
-
+"""
 class GlobalAttention(nn.Module):
     def __init__(self, d_model, max_len=2048, dropout=0):
         super().__init__()
@@ -150,7 +150,7 @@ class RelativeGlobalAttention(nn.Module):
         # Srel.shape = (batch_size, num_heads, seq_len, seq_len)
         return Srel
 
-
+"""
 
 class ConvNet(nn.Module):
     def __init__(self, big_conv=False):
@@ -208,7 +208,7 @@ class SSMnet(ConvNet):
         self.query = nn.Linear(d_model, d_model)
         self.pos = PositionalEncoding(d_model, dropout, max_len)  
         self.identity = nn.Identity()
-        self.mh_att = nn.MultiheadAttention(embed_dim=d_model, num_heads=4)
+        #self.mh_att = nn.MultiheadAttention(embed_dim=d_model, num_heads=4)
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         if freeze_convs:
             self.freeze_layer(self.conv1)
@@ -251,24 +251,25 @@ class SSMnet(ConvNet):
             raise ValueError(
                 "sequence length exceeds model capacity"
             )
-        q = self.query(embeds)
-        k = self.key(embeds)
-        v = self.value(embeds)
+        q = self.selu(self.query(embeds))
+        k = self.selu(self.key(embeds))
+        v = self.selu(self.value(embeds))
+        print(q.shape, k.shape, v.shape)
         # shape = (batch_size, seq_len, d_model)
-        k_pos = self.pos(k)
-        #QK_t = torch.matmul(q , k_pos)
+        k_pos = self.pos(k).transpose(-1,-2)
+        print(k_pos.shape)
+        QK_t = torch.matmul(q , k_pos)
         # QK_t.shape = (batch_size, seq_len, seq_len)
-        #attn = QK_t / math.sqrt(q.size(-1))
+        attn = QK_t / math.sqrt(q.size(-1))
         # attn.shape = (batch_size, seq_len, seq_len)
         #attn = torch.sigmoid(attn)
-        #attn = F.softmax(attn, dim=-1)
-        #out = F.normalize(torch.matmul(attn, v), p=2)
+        attn = F.softmax(attn, dim=-1)
+        out = F.normalize(torch.matmul(attn, v), p=2)
         # out.shape == (batch_size, seq_len, d_model)
-        #out += residual
-        out, _ = self.mh_att(q.transpose(0,1),k_pos.transpose(0,1),v.transpose(0,1))
+        out += residual
+        #out, _ = self.mh_att(q.transpose(0,1),k_pos.transpose(0,1),v.transpose(0,1))
         
-        embeds_att = F.normalize(residual + out.transpose(0,1), p=2)
-        print(embeds_att.shape)
+        embeds_att = F.normalize(out, p=2)
         smm_hat = torch.cdist(embeds_att.transpose(0,1), embeds_att.transpose(0,1), 2)
         smm_hat = 1 - smm_hat/torch.max(smm_hat)
         

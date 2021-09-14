@@ -7,10 +7,12 @@ import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
+import numpy as np
 from dataloader import CQTsDataset
 from model import SSMnet
 from utils import weighted_bce_loss
 from madgrad import madgrad_wd
+
 
 print('libraries imported')
 
@@ -27,8 +29,8 @@ N_EPOCH = 250
 batch_size = 1
 backward_size = 6
 
-files_train = glob.glob(data_path_isoph)
-files_val = glob.glob(data_path_harmonix)
+files_train = glob.glob(data_path_harmonix)
+files_val = glob.glob(data_path_isoph)
 
 val_dataset = CQTsDataset(files_val)
 validation_loader = DataLoader(
@@ -41,36 +43,48 @@ print(len(files_val), 'validation examples')
 
 model = SSMnet().to(device)
 
-optimizer = madgrad_wd(model.parameters(), lr=5e-3, weight_decay=0.01)
-scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min')
-
 best_loss = float('inf')
 
+losses_cqts = np.zeros((len(validation_loader)))
+losses_init = np.zeros((len(validation_loader)))
+losses_pretrain = np.zeros((len(validation_loader)))
+losses_ssmnet = np.zeros((len(validation_loader)))
 
+"""
 print('evaluation untrained model')
 with torch.no_grad():
-        model.eval()
-        running_loss = 0.0
-        running_loss_cqts = 0.0
-        for i, (cqts, ssm) in enumerate(tqdm(validation_loader)):
-            embeds = model.apply_cnn(cqts.transpose(0, 1)).unsqueeze(0)
-            cqts_flat = torch.nn.functional.normalize(cqts.reshape(1, -1, 72*64), p=2)
-            _, T, _ = cqts_flat.shape
-            ssm_cqts = torch.cdist(cqts_flat, cqts_flat)
-            ssm_cqts = 1 - ssm_cqts/torch.max(ssm_cqts)
-            ssm_hat = torch.cdist(embeds, embeds)
-            ssm_hat = 1 - ssm_hat/torch.max(ssm_hat)
-            val_loss = weighted_bce_loss(ssm_hat, ssm)
-            cqts_loss = weighted_bce_loss(ssm_cqts, ssm)
-            running_loss += val_loss.item()
-            running_loss_cqts += cqts_loss.item()
+        for n in range(10):
+            model = SSMnet().to(device)
+            model.eval()
+            running_loss = 0.0
+            running_loss_cqts = 0.0
+            for i, (cqts, ssm) in enumerate(tqdm(validation_loader)):
+                embeds = model.apply_cnn(cqts.transpose(0, 1)).unsqueeze(0)
+                cqts_flat = cqts.reshape(1, -1, 72 * 64)/(torch.max(cqts) + 1e-7)
+                _, T, _ = cqts_flat.shape
+                ssm_cqts = torch.cdist(cqts_flat, cqts_flat)
+                ssm_cqts = 1 - ssm_cqts/torch.max(ssm_cqts)
+                ssm_hat = torch.cdist(embeds, embeds)
+                ssm_hat = 1 - ssm_hat/torch.max(ssm_hat)
+                val_loss = weighted_bce_loss(ssm_hat, ssm)
+                cqts_loss = weighted_bce_loss(ssm_cqts, ssm)
+                running_loss += val_loss.item()
+                running_loss_cqts += cqts_loss.item()
+                losses_cqts[i] +=  cqts_loss/10
+                losses_init[i] +=  val_loss/10
+            
         # print statistics
         print('average validation loss (Isophonics): %.6f' %
               (running_loss / len(validation_loader)))
         print('average cqts loss (Isophonics): %.6f' %
               (running_loss_cqts / len(validation_loader)))
 
-model.load_state_dict(torch.load('{0}weights/best_a02.pt'.format(root_path)), strict=False)
+np.save(root_path + "losses_cqts", losses_cqts)
+np.save(root_path + "losses_init", losses_init)
+
+"""
+
+model.load_state_dict(torch.load('{0}best_ssm_net.pt'.format(root_path)), strict=False)
 
 print('evaluating model with pretrained embeddings')
 
@@ -83,11 +97,17 @@ with torch.no_grad():
             ssm_hat = 1 - ssm_hat/torch.max(ssm_hat)
             val_loss = weighted_bce_loss(ssm_hat, ssm)
             running_loss += val_loss.item()
-
+            losses_ssmnet[i] =  val_loss
         # print statistics
         print('average validation loss (Isophonics): %.6f' %
               (running_loss / len(validation_loader)))
 
+np.save(root_path + "losses_ssmnet", losses_ssmnet)
+
+
+
+optimizer = madgrad_wd(model.parameters(), lr=5e-3, weight_decay=0.01)
+scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min')
 
 
 for epoch in range(N_EPOCH):

@@ -9,20 +9,21 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from dataloader import SSMsDataset
 from model import CohenNet
+from madgrad import madgrad_wd
 
 print('libraries imported')
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "error")
 root_path = "/tsi/clusterhome/atiam-1005/M2-ATIAM-internship/music-structure-estimation/Cohen-Hadria/"
-data_path_harmonix = "/tsi/clusterhome/atiam-1005/data/Harmonix/ssm/*"
-data_path_isoph = "/tsi/clusterhome/atiam-1005/data/Isophonics/ssm/*"
+data_path_harmonix = "/tsi/clusterhome/atiam-1005/data/Harmonix/ssm/McCallum/*.npy"
+data_path_isoph = "/tsi/clusterhome/atiam-1005/data/Isophonics/ssm/McCallum/*.npy"
 
-name_exp = "bigger_fc_lr5e-5_reduced_dropout"
+name_exp = "final_exp_McCallum"
 writer = SummaryWriter('{0}runs/{1}'.format(root_path, name_exp))
 
 
-N_EPOCH = 250
-batch_size = 8
+N_EPOCH = 50
+batch_size = 4
 
 files_train = glob.glob(data_path_harmonix)
 files_val = glob.glob(data_path_isoph)
@@ -38,10 +39,26 @@ print(len(files_val), 'validation examples')
 
 model = CohenNet().to(device)
 
-optimizer = optim.Adam(model.parameters(),lr=5e-5)
+optimizer = madgrad_wd(model.parameters(), lr=1e-4, weight_decay=0.01)
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min')
 bce_loss = torch.nn.BCELoss()
 best_loss = float('inf')
+
+with torch.no_grad():
+    model.eval()
+    running_loss = 0.0
+    for i, (ssm, boundaries) in enumerate(tqdm(validation_loader)):
+        ssm = ssm.view(-1, 15, 15)
+        boundaries = boundaries.view(-1, 1)
+        boundaries = boundaries*0.7 + (1-boundaries)*0.3
+        probs = model(ssm)
+        val_loss = bce_loss(probs, boundaries)
+        running_loss += val_loss.item()
+        optimizer.step()
+        optimizer.zero_grad()
+    # print statistics
+    print('average validation loss (Isophonics): %.6f' %
+          (running_loss / len(validation_loader)))
 
 
 for epoch in range(N_EPOCH):
@@ -55,8 +72,9 @@ for epoch in range(N_EPOCH):
     model.train()
     print("EPOCH " + str(epoch + 1) + "/" + str(N_EPOCH))
     for i, (ssm, boundaries) in enumerate(tqdm(train_loader)):
-        ssm = ssm.view(-1, 3, 8, 8)
+        ssm = ssm.view(-1, 15, 15)
         boundaries = boundaries.view(-1, 1)
+        boundaries = boundaries*0.7 + (1-boundaries)*0.3
         probs = model(ssm)
         train_loss = bce_loss(probs, boundaries)
         train_loss.backward()
@@ -78,9 +96,10 @@ for epoch in range(N_EPOCH):
         model.eval()
         running_loss = 0.0
         for i, (ssm, boundaries) in enumerate(tqdm(validation_loader)):
-            ssm = ssm.view(-1, 3, 8, 8)
+            ssm = ssm.view(-1, 15, 15)
             boundaries = boundaries.view(-1, 1)
             probs = model(ssm)
+            boundaries = boundaries*0.7 + (1-boundaries)*0.3
             val_loss = bce_loss(probs, boundaries)
             running_loss += val_loss.item()
             optimizer.step()
